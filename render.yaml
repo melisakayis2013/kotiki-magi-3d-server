@@ -1,0 +1,39 @@
+# Готовая настройка для хостинга Render.
+#
+# Заливаете проект на GitHub, на render.com нажимаете
+# "New +" -> "Blueprint" -> выбираете репозиторий. Всё.
+#
+# Здесь сразу заказана и база данных. Она нужна вот зачем: у бесплатного
+# сервера папка стирается при каждом перезапуске, и аккаунты, друзья,
+# переписка и сохранения пропали бы. База живёт отдельно и переживает
+# перезапуски. Render сам подставит её адрес в DATABASE_URL, а сервер
+# сам его найдёт — настраивать ничего не нужно.
+
+databases:
+  - name: kotiki-baza
+    plan: free
+    databaseName: kotiki
+    user: kotiki
+
+services:
+  - type: web
+    name: kotiki-magi-server
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /api/status
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      # адрес базы Render подставит сам
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kotiki-baza
+          property: connectionString
+      # Слово-ключ для запасной копии. Render придумает его сам,
+      # посмотреть можно в настройках сервиса -> Environment.
+      # По адресу /api/backup?key=ЭТО-СЛОВО скачивается файл
+      # со всеми аккаунтами и друзьями — на всякий случай.
+      - key: KMAGI_ADMIN
+        generateValue: true

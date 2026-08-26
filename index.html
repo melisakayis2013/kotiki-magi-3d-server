@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+
+<title>Котики Маги 3D — пиксельная 3D-игра про котов-магов</title>
+
+<!-- Чтобы игру находили поисковики и красиво показывали ссылки -->
+<meta name="description" content="Котики Маги 3D — бесплатная браузерная игра: 130 локаций, 31 кот-маг, 17 заклинаний, питомцы и совместная игра с друзьями. Играть прямо в браузере, без установки.">
+<meta name="keywords" content="котики маги 3d, игра про котов, браузерная игра, пиксельная 3d игра, играть бесплатно, коты маги, воксельная игра">
+<meta name="author" content="Котики Маги 3D">
+<meta name="theme-color" content="#2a1a5a">
+<link rel="canonical" href="./">
+
+<!-- Карточка при отправке ссылки в мессенджер или соцсеть -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Котики Маги 3D">
+<meta property="og:title" content="Котики Маги 3D — играть бесплатно в браузере">
+<meta property="og:description" content="130 локаций, 31 кот-маг, 17 заклинаний и игра вдвоём. Открыл и играешь — ничего скачивать не нужно.">
+<meta property="og:image" content="cover.png">
+<meta property="og:locale" content="ru_RU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Котики Маги 3D">
+<meta name="twitter:description" content="Пиксельная 3D-игра про котов-магов. Играть в браузере бесплатно.">
+<meta name="twitter:image" content="cover.png">
+
+<!-- Чтобы игру можно было поставить значком на телефон -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Котики Маги 3D">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐱</text></svg>">
+<link rel="stylesheet" href="styles.css?v94">
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+  <canvas id="fx"></canvas>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hidden">
+    <div id="hud-tl">
+      <div class="cat-badge"><span id="hud-cat-icon">🐱</span></div>
+      <div class="bars">
+        <div class="bar bar-hp"><i id="b-hp"></i><span id="t-hp">100/100</span></div>
+        <div class="bar bar-mana"><i id="b-mana"></i><span id="t-mana">60/60</span></div>
+        <div class="bar bar-energy"><i id="b-energy"></i><span id="t-energy">100/100</span></div>
+        <div class="bar bar-xp"><i id="b-xp"></i><span id="t-xp">Ур. 1</span></div>
+      </div>
+    </div>
+
+    <div id="hud-tr">
+      <div class="chip chip-gold"><span>🪙</span><b id="t-coins">0</b></div>
+      <div class="chip chip-key"><span>🗝️</span><b id="t-keys">0</b></div>
+      <div id="objectives"></div>
+    </div>
+
+    <div id="climate" class="hidden"><span class="cl-icons"></span><span class="cl-label"></span></div>
+
+    <div id="hud-status"></div>
+
+    <div id="hud-buttons">
+      <button class="hbtn" data-act="pausebtn" title="Пауза (Esc)">⏸</button>
+      <button class="hbtn" data-act="invgame" title="Сумка (I)">🎒</button>
+      <button class="hbtn" data-act="helpgame" title="Управление">❔</button>
+    </div>
+
+    <div id="spellwrap" class="hudbar"></div>
+    <div id="abilwrap" class="hudbar"></div>
+
+    <div id="hud-controls">
+      <kbd>WASD</kbd> ходить · <kbd>ПКМ</kbd> камера · <kbd>ЛКМ</kbd> лапой · <kbd>ЛКМ+ПКМ</kbd>/<kbd>T</kbd> магия ·
+      <kbd>Shift</kbd> рывок · <kbd>E</kbd>/<kbd>Q</kbd> скорость · <kbd>Space</kbd> прыжок×3 · <kbd>F</kbd> отдых ·
+      <kbd>R</kbd> еда · <kbd>K</kbd> взять · <kbd>I</kbd> сумка · <kbd>V</kbd> вид ·
+      <kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>G</kbd><kbd>B</kbd><kbd>H</kbd> способности
+    </div>
+
+    <div id="net-badge" class="hidden"></div>
+
+    <!-- Кто рядом: маленькая вкладка прямо в игре -->
+    <button id="who-toggle" class="gone" title="Кто играет">👥<span class="cnt">1</span></button>
+    <div id="who-panel">
+      <div class="wp-head"><span>👥 КТО ИГРАЕТ</span><button id="who-close">✕</button></div>
+      <div class="wp-list"></div>
+      <div class="wp-add">
+        <input id="who-nick" placeholder="ник друга" maxlength="16" autocomplete="off">
+        <button id="who-send">➕</button>
+      </div>
+    </div>
+
+    <!-- Табло матча -->
+    <div id="match-hud" class="hidden">
+      <div class="mh-top">
+        <span class="mh-name"></span>
+        <span class="mh-timer"></span>
+      </div>
+      <div class="mh-teams hidden">
+        <span class="mh-red">🔴 <b>0</b></span>
+        <span class="mh-goal">до 30</span>
+        <span class="mh-blue">🔵 <b>0</b></span>
+      </div>
+      <div class="mh-board"></div>
+    </div>
+    <div id="tut"></div>
+    <div id="hurt-vignette"></div>
+    <div id="hide-vignette"></div>
+  </div>
+
+
+
+  <!-- Кошачьи выходки -->
+  <button id="emote-toggle" title="Что умеет кот (Y)">🐾</button>
+  <div id="emote-wheel">
+    <div class="ew-title">ЧТО УМЕЕТ КОТ</div>
+    <div class="ew-grid" id="emote-grid"></div>
+    <div class="ew-hint">Клавиши <kbd>Y</kbd> — окно · <kbd>1</kbd>…<kbd>9</kbd> при открытом окне</div>
+  </div>
+
+  <!-- Просьба повернуть телефон -->
+  <div id="rotate">
+    <div class="rot-in">
+      <div class="rot-ico">📱</div>
+      <h2>Поверните телефон</h2>
+      <p>Котикам нужен широкий экран — так видно дальше и кнопки не мешают.</p>
+      <button class="btn" data-act="fullscreen">⛶ Во весь экран</button>
+    </div>
+  </div>
+
+  <!-- ================= ЧАТ ================= -->
+  <div id="bubbles"></div>
+
+  <button id="chat-toggle" title="Чат (Enter)">💬<span class="cnt hidden">0</span></button>
+
+  <div id="chat">
+    <header class="chead">
+      <span class="ttl">💬 ЧАТ</span>
+      <button id="chat-close" title="Закрыть">✕</button>
+    </header>
+    <div id="chat-log"></div>
+    <div id="chat-tabs">
+      <button class="ctab active" data-tab="emoji">😺 Смайлики</button>
+      <button class="ctab" data-tab="stickers">🐾 Стикеры</button>
+    </div>
+    <div id="chat-extra"></div>
+    <div class="crow">
+      <input id="chat-input" placeholder="написать…" maxlength="120" autocomplete="off">
+      <button id="chat-send">▶</button>
+    </div>
+  </div>
+
+  <!-- ================= СЕНСОРНЫЙ ПУЛЬТ ================= -->
+  <div id="touch" class="hidden">
+    <div id="touch-look"></div>
+    <div id="touch-stick"><div id="touch-knob"></div></div>
+    <div id="touch-pads"></div>
+  </div>
+
+  <!-- ================= ЭКРАНЫ ================= -->
+  <div id="screens">
+
+    <!-- Главное меню -->
+    <section class="screen active" id="scr-menu">
+      <div class="menu-wrap">
+        <h1 class="title">
+          <span class="t1">КОТИКИ</span>
+          <span class="t2">МАГИ</span>
+          <span class="t3">3D</span>
+        </h1>
+        <p class="subtitle">Кубический мир, милые коты и очень много магии</p>
+        <div class="menu-buttons">
+          <button class="btn btn-big" data-act="play">▶ ИГРАТЬ</button>
+          <button class="btn" data-act="shop">🛒 Магазин</button>
+          <button class="btn" data-act="gacha">🎰 Колесо и сундуки</button>
+          <button class="btn" data-act="pets">🐾 Питомцы</button>
+          <button class="btn" data-act="skills">⭐ Навыки</button>
+          <button class="btn" data-act="cats">🐱 Коты</button>
+          <button class="btn" data-act="inv">🎒 Сумка</button>
+          <button class="btn" data-act="settings">⚙ Настройки</button>
+          <button class="btn btn-ghost" data-act="help">❔ Управление</button>
+          <button class="btn btn-ghost" data-act="slots">💾 Мои игры</button>
+          <button class="btn btn-ghost" data-act="direct">🎮 Играть вдвоём</button>
+          <button class="btn btn-ghost" data-act="servers">🌍 Сервера</button>
+          <button class="btn btn-ghost" data-act="server">🌐 Друзья<span id="mail-badge" class="mail-badge hidden">0</span></button>
+          <button class="btn btn-ghost" data-act="profile">👤 Профиль</button>
+        </div>
+        <div class="code-box">
+          <div class="code-row">
+            <span class="code-ic" title="Секретный код">🎁</span>
+            <input id="code-input" class="f-input" placeholder="секретный код…" maxlength="24" autocomplete="off" spellcheck="false">
+            <button class="btn btn-sm btn-good" data-act="code">Ввести</button>
+          </div>
+          <div class="code-msg" id="code-msg"></div>
+        </div>
+        <div class="menu-stats" id="menu-stats"></div>
+      </div>
+    </section>
+
+    <!-- Выбор локации -->
+    <section class="screen" id="scr-locations">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>ВЫБОР ЛОКАЦИИ</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="loc-legend">
+          <span><i class="dot done"></i> пройдена</span>
+          <span><i class="dot open"></i> доступна</span>
+          <span><i class="dot lock"></i> закрыта</span>
+          <span><i class="dot boss"></i> логово босса</span>
+        </div>
+        <div class="panel-body" id="loc-list"></div>
+      </div>
+    </section>
+
+    <!-- Магазин -->
+    <section class="screen" id="scr-shop">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🛒 ЛАВКА СТАРОГО КОТА</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="tabs" id="shop-tabs">
+          <button class="tab active" data-tab="items">Припасы</button>
+          <button class="tab" data-tab="spells">Заклинания</button>
+          <button class="tab" data-tab="abils">Способности</button>
+          <button class="tab" data-tab="pets">Питомцы</button>
+          <button class="tab" data-tab="cats">Коты</button>
+          <button class="tab" data-tab="packs">🎁 Наборы</button>
+          <button class="tab" data-tab="skins">👗 Костюмы</button>
+          <button class="tab" data-tab="accs">🎩 Аксессуары</button>
+          <button class="tab" data-tab="petaccs">🐾 Питомцам</button>
+          <button class="tab" data-tab="sell">Продать</button>
+        </div>
+        <div class="panel-body" id="shop-list"></div>
+      </div>
+    </section>
+
+    <!-- Питомцы -->
+    <section class="screen" id="scr-pets">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🐾 ПИТОМЦЫ</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="slots" id="pet-slots"></div>
+        <div class="panel-body" id="pet-list"></div>
+      </div>
+    </section>
+
+    <!-- Навыки -->
+    <section class="screen" id="scr-skills">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>⭐ НАВЫКИ</h2>
+          <div class="head-right"><span class="chip chip-sp">Очки: <b id="t-sp">0</b></span></div>
+        </header>
+        <div class="panel-body" id="skill-list"></div>
+      </div>
+    </section>
+
+    <!-- Коты -->
+    <section class="screen" id="scr-cats">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🐱 КОТЫ-МАГИ</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="panel-body" id="cat-list"></div>
+      </div>
+    </section>
+
+    <!-- Сумка -->
+    <section class="screen" id="scr-inv">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🎒 СУМКА</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="panel-body" id="inv-list"></div>
+      </div>
+    </section>
+
+    <!-- Настройки -->
+    <section class="screen" id="scr-settings">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>⚙ НАСТРОЙКИ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="settings-list"></div>
+      </div>
+    </section>
+
+    <!-- Управление -->
+    <section class="screen" id="scr-help">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>❔ УПРАВЛЕНИЕ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="help-body"></div>
+      </div>
+    </section>
+
+    <!-- Пауза -->
+    <section class="screen dim" id="scr-pause">
+      <div class="panel panel-narrow">
+        <header class="panel-head"><h2>⏸ ПАУЗА</h2></header>
+        <div class="panel-body col">
+          <button class="btn btn-big" data-act="resume">▶ Продолжить</button>
+          <button class="btn" data-act="inv">🎒 Сумка</button>
+          <button class="btn" data-act="skills">⭐ Навыки</button>
+          <button class="btn" data-act="pets">🐾 Питомцы</button>
+          <button class="btn" data-act="settings">⚙ Настройки</button>
+          <button class="btn" data-act="help">❔ Управление</button>
+          <button class="btn btn-danger" data-act="quit">✖ Выйти в меню</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Победа -->
+    <section class="screen dim" id="scr-win">
+      <div class="panel panel-narrow">
+        <header class="panel-head"><h2>🏆 ЛОКАЦИЯ ПРОЙДЕНА!</h2></header>
+        <div class="panel-body col" id="win-body"></div>
+      </div>
+    </section>
+
+    <!-- Поражение -->
+    <section class="screen dim" id="scr-lose">
+      <div class="panel panel-narrow">
+        <header class="panel-head"><h2>😿 КОТ ПОБЕЖДЁН</h2></header>
+        <div class="panel-body col" id="lose-body"></div>
+      </div>
+    </section>
+
+
+    <!-- Колесо и сундуки -->
+    <section class="screen" id="scr-gacha">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🎰 КОЛЕСО УДАЧИ</h2>
+          <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
+        </header>
+        <div class="panel-body" id="gacha-body"></div>
+      </div>
+    </section>
+
+    <!-- Слоты сохранений -->
+    <section class="screen" id="scr-slots">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>💾 ВЫБОР ИГРЫ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="slot-list"></div>
+      </div>
+    </section>
+
+
+
+    <!-- Заставка при запуске -->
+    <section class="screen" id="scr-intro">
+      <canvas id="intro-art"></canvas>
+      <div class="intro-over">
+        <h1 class="intro-title">
+          <span class="i1">КОТИКИ</span>
+          <span class="i2">МАГИ</span>
+          <span class="i3">3D</span>
+        </h1>
+        <p class="intro-sub">Сто локаций · тридцать один кот · семнадцать заклинаний</p>
+        <button class="btn btn-big intro-go" data-act="introgo">▶ НАЧАТЬ</button>
+        <div class="intro-hint">нажмите в любом месте</div>
+      </div>
+    </section>
+
+    <!-- Вход в аккаунт -->
+    <section class="screen" id="scr-login">
+      <div class="panel">
+        <header class="panel-head">
+          <div style="min-width:120px"></div>
+          <h2>🐾 ВХОД В ИГРУ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="login-body"></div>
+      </div>
+    </section>
+
+    <!-- Создание аккаунта -->
+    <section class="screen" id="scr-signup">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back hidden" data-act="tologin">← Назад</button>
+          <h2>✨ НОВЫЙ АККАУНТ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="signup-body"></div>
+      </div>
+    </section>
+
+    <!-- Профиль -->
+    <section class="screen" id="scr-profile">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>👤 ПРОФИЛЬ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="profile-body"></div>
+      </div>
+    </section>
+
+    <!-- День рождения -->
+    <section class="screen" id="scr-birthday">
+      <div class="bd-wrap">
+        <div class="bd-cake">🎂</div>
+        <h1 class="bd-title">С ДНЁМ РОЖДЕНИЯ!</h1>
+        <div class="bd-name"></div>
+        <p class="bd-text"></p>
+        <button class="btn btn-big" data-act="bdclaim">🎁 Забрать подарки</button>
+        <div class="bd-list"></div>
+      </div>
+      <div class="bd-confetti"></div>
+    </section>
+
+
+    <!-- Сервер: кто играет и друзья -->
+    <!-- Выбор сервера: игроку не нужен никакой адрес -->
+    <!-- Настройка профиля -->
+    <section class="screen" id="scr-edit">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🎨 МОЙ ПРОФИЛЬ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="edit-body"></div>
+      </div>
+    </section>
+
+    <section class="screen" id="scr-servers">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🌍 СЕРВЕРА</h2>
+          <div class="head-right"><span id="net-dot2" class="net-dot"></span></div>
+        </header>
+        <div class="panel-body" id="servers-body"></div>
+      </div>
+    </section>
+
+    <!-- Переписка с другом -->
+    <section class="screen" id="scr-talk">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2 id="talk-title">✉ ПЕРЕПИСКА</h2>
+          <div class="head-right"><span id="talk-where" class="talk-where"></span></div>
+        </header>
+        <div class="talk-log" id="talk-log"></div>
+        <div class="talk-send">
+          <input id="talk-input" placeholder="написать другу…" maxlength="400" autocomplete="off">
+          <button id="talk-go">➤</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="scr-server">
+      <div class="panel panel-wide">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🌐 СЕРВЕР</h2>
+          <div class="head-right"><span id="net-dot" class="net-dot"></span></div>
+        </header>
+        <div class="tabs" id="server-tabs">
+          <button class="tab active" data-tab="online">👥 Кто играет</button>
+          <button class="tab" data-tab="friends">🐾 Друзья</button>
+          <button class="tab" data-tab="add">➕ Добавить</button>
+        </div>
+        <div class="panel-body" id="server-body"></div>
+      </div>
+    </section>
+
+    <!-- Как играть: на сервере или одному -->
+    <section class="screen" id="scr-mode">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2 id="mode-title">КАК ИГРАЕМ?</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="mode-body"></div>
+      </div>
+    </section>
+
+    <!-- Игра напрямую, по коду -->
+    <section class="screen" id="scr-direct">
+      <div class="panel">
+        <header class="panel-head">
+          <button class="btn btn-back" data-act="back">← Назад</button>
+          <h2>🎮 ИГРАТЬ ВДВОЁМ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="direct-body"></div>
+      </div>
+    </section>
+
+    <!-- Итоги матча -->
+    <section class="screen" id="scr-match">
+      <div class="panel">
+        <header class="panel-head">
+          <div style="min-width:120px"></div>
+          <h2 id="match-title">ИТОГИ</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="match-body"></div>
+      </div>
+      <div class="bd-confetti" id="match-confetti"></div>
+    </section>
+
+    <!-- Награда за секретный код -->
+    <section class="screen" id="scr-code">
+      <div class="panel">
+        <header class="panel-head">
+          <div style="min-width:120px"></div>
+          <h2>🎁 СЕКРЕТНЫЙ КОД</h2>
+          <div class="head-right"></div>
+        </header>
+        <div class="panel-body" id="code-body"></div>
+      </div>
+      <div class="bd-confetti" id="code-confetti"></div>
+    </section>
+
+    <!-- Загрузка -->
+    <section class="screen" id="scr-loading">
+      <canvas id="load-art"></canvas>
+      <div class="loading">
+        <div class="loading-text">Плетём кубический мир…</div>
+        <div class="loading-bar"><i></i></div>
+        <div class="loading-tip"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="reveal" class="hidden">
+    <div class="rv-glow"></div>
+    <div class="rv-burst"></div>
+    <div class="rv-top"><span class="rv-rarity"></span></div>
+    <div class="rv-bottom">
+      <div class="rv-name"></div>
+      <div class="rv-desc"></div>
+      <div class="rv-hint">нажмите, чтобы продолжить</div>
+    </div>
+    <div class="rv-queue"></div>
+  </div>
+  <div id="modal" class="hidden">
+    <div class="panel panel-narrow">
+      <header class="panel-head"><h2 id="mo-title">ВОПРОС</h2></header>
+      <div class="panel-body col">
+        <p id="mo-text"></p>
+        <input id="mo-input" class="mo-input" maxlength="22">
+        <div class="mo-btns">
+          <button class="btn btn-good" id="mo-ok">Хорошо</button>
+          <button class="btn btn-ghost" id="mo-cancel">Отмена</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="bigmsg" class="hidden"><div class="bm-inner"><h3></h3><p></p></div></div>
+  <div id="fps" class="hidden">60</div>
+  <div id="fatal" class="hidden"></div>
+</div>
+
+<script src="src/core/math.js?v94"></script>
+<script src="src/core/device.js?v94"></script>
+<script src="src/core/gl.js?v94"></script>
+<script src="src/core/input.js?v94"></script>
+<script src="src/core/synth.js?v94"></script>
+<script src="src/core/sounds.js?v94"></script>
+<script src="src/core/voices.js?v94"></script>
+<script src="src/core/audio.js?v94"></script>
+<script src="src/world/palette.js?v94"></script>
+<script src="src/world/voxmodel.js?v94"></script>
+<script src="src/world/models.js?v94"></script>
+<script src="src/world/catbuild.js?v94"></script>
+<script src="src/world/emotes.js?v94"></script>
+<script src="src/world/cats.js?v94"></script>
+<script src="src/world/wardrobe.js?v94"></script>
+<script src="src/world/biomes.js?v94"></script>
+<script src="src/world/worldgen.js?v94"></script>
+<script src="src/game/state.js?v94"></script>
+<script src="src/game/gacha.js?v94"></script>
+<script src="src/game/codes.js?v94"></script>
+<script src="src/game/account.js?v94"></script>
+<script src="src/game/saves.js?v94"></script>
+<script src="src/game/tutorial.js?v94"></script>
+<script src="src/game/entities.js?v94"></script>
+<script src="src/game/fx.js?v94"></script>
+<script src="src/game/magic.js?v94"></script>
+<script src="src/game/abilities.js?v94"></script>
+<script src="src/game/player.js?v94"></script>
+<script src="src/game/game.js?v94"></script>
+<script src="src/game/localhub.js?v94"></script>
+<script src="src/game/p2p.js?v94"></script>
+<script src="src/core/i18n.js?v94"></script>
+<script src="src/core/lang-en.js?v94"></script>
+<script src="src/core/lang-tr.js?v94"></script>
+<script src="src/game/servers.js?v94"></script>
+<script src="src/game/net.js?v94"></script>
+<script src="src/ui/keyart.js?v94"></script>
+<script src="src/ui/stickers.js?v94"></script>
+<script src="src/ui/chat.js?v94"></script>
+<script src="src/ui/touch.js?v94"></script>
+<script src="src/ui/ui.js?v94"></script>
+<script src="src/main.js?v94"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "Котики Маги 3D",
+  "short_name": "Котики Маги",
+  "description": "Пиксельная 3D-игра про котов-магов: 130 локаций, 31 кот, 17 заклинаний и совместная игра с друзьями.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#12081f",
+  "theme_color": "#2a1a5a",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
