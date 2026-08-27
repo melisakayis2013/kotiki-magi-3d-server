@@ -532,7 +532,49 @@ MODES = {
         'goal': 0,
         'time': 0,
     },
+
+    # ---- мини-игры ----
+    # Футбол и баскетбол делят игроков на команды — этим занимается
+    # тот же механизм, что и в «Красные против синих»: сервер сам
+    # разводит вошедших поровну и говорит каждому, за кого он играет.
+    'football': {
+        'name': 'Кошачий футбол',
+        'pvp': False, 'monsters': False, 'teams': True, 'goal': 0, 'time': 180,
+    },
+    'basket': {
+        'name': 'Кошачий баскетбол',
+        'pvp': False, 'monsters': False, 'teams': True, 'goal': 0, 'time': 120,
+    },
+    'parkour': {
+        'name': 'Небесная тропа',
+        'pvp': False, 'monsters': False, 'teams': False, 'goal': 0, 'time': 0,
+    },
+    'race': {
+        'name': 'Кошачьи гонки',
+        'pvp': False, 'monsters': False, 'teams': False, 'goal': 0, 'time': 0,
+    },
+    # Дуэль: двое, три раунда, силы уравнены. Команды нужны, чтобы
+    # сервер сам назвал одного рыжим, другого синим — так понятно,
+    # кто есть кто, и счёт раундов ведётся по командам.
+    'duel': {
+        'name': 'Дуэль',
+        'pvp': True, 'monsters': False, 'teams': True, 'goal': 0, 'time': 0,
+    },
+    # Прятки. Драться незачем, команд нет: водящий один, и его роль
+    # определяет не сервер, а то, кто в комнате хозяин.
+    'hide': {
+        'name': 'Прятки',
+        'pvp': False, 'monsters': False, 'teams': False, 'goal': 0, 'time': 0,
+    },
 }
+
+# У мини-игр нет обычной локации, поэтому им выданы свои номера.
+# Так комната мини-игры ничем не отличается от комнаты локации:
+# те же игроки, те же команды, тот же список серверов.
+# У пряток четыре площадки, поэтому номеров у них тоже четыре:
+# 210 дом, 211 сад, 212 торговый центр, 213 двор.
+АРЕНЫ = {'football': 200, 'basket': 201, 'parkour': 202, 'race': 203,
+         'duel': 205, 'hide': 210}
 
 
 
@@ -553,6 +595,21 @@ OPEN_SERVERS = [
     ('Ночная арена',        'battle', 58, 16),
     ('Красные и синие',     'team',   5,  30),
     ('Большая битва',       'team',   33, 30),
+    # мини-игры
+    # Ключ комнаты — это «режим:номер», поэтому у двух площадок одной
+    # игры номера должны быть разные, иначе они слипаются в одну.
+    # Какая именно площадка рисуется, решает режим, а не номер.
+    ('Футбольное поле',     'football', 200, 10),
+    ('Дворовый футбол',     'football', 204, 10),
+    ('Баскетбольная площадка', 'basket', 201, 8),
+    ('Небесная тропа',      'parkour', 202, 12),
+    ('Гоночная трасса',     'race',    203, 8),
+    ('Круг чести',          'duel',    205, 2),
+    ('Дуэльный камень',     'duel',    206, 2),
+    ('Прятки: большой дом',  'hide',   210, 12),
+    ('Прятки: сад',          'hide',   211, 12),
+    ('Прятки: торговый центр', 'hide', 212, 12),
+    ('Прятки: двор',         'hide',   213, 12),
 ]
 
 
@@ -970,6 +1027,8 @@ class Client:
         self.device = 'pc'
         self.room = None
         self.room_name = None
+        self.place = 'menu'        # где игрок вне общей локации: дом, двор, арена
+        self.place_name = None
         self.loc = None
         self.mode = 'coop'
         self.account = None        # ник учётки, если игрок вошёл
@@ -1105,6 +1164,16 @@ def handle_message(c, m):
         c.send({'t': 'saves', 'saves': STORE.get_saves(c.account)})
         return
 
+    if t == 'catroom':
+        # Комната кота лежит в профиле игрока. Отдаём её любому,
+        # кто спросит по нику: смотреть чужую комнату не опасно,
+        # там нет ничего личного — только мебель и рыба на стене.
+        кто = str(m.get('nick') or '').strip()[:16]
+        u = STORE.user(кто)
+        prof = (u.get('profile') or {}) if u else {}
+        c.send({'t': 'catroom', 'nick': кто, 'room': prof.get('catroom')})
+        return
+
     if t == 'profile':
         u = STORE.user(getattr(c, 'account', None))
         if u:
@@ -1121,7 +1190,10 @@ def handle_message(c, m):
             return
         old = HUB.by_nick(nick)
         if old and old is not c:
-            old.send({'t': 'err', 'msg': 'Вы зашли с другого устройства', 'fatal': True})
+            # Один ник — одно устройство: иначе два кота с одним именем
+            # ходили бы по серверу, и никто не понял бы, кто где.
+            old.send({'t': 'err', 'msg': 'Этот ник уже играет на другом устройстве',
+                      'fatal': True, 'why': 'nick'})
             old.close()
         c.nick = nick
         c.cat = str(m.get('cat') or 'muri')[:32]
@@ -1176,7 +1248,10 @@ def handle_message(c, m):
             loc, mode, key = room.loc, room.mode, room.key
         else:
             loc = int(m.get('loc', -1))
-            if loc < 0 or loc > 99:
+            # Верхняя граница была 99 — из-за неё тридцать новых локаций
+            # нельзя было открыть на сервере вовсе, а мини-играм не
+            # хватало номеров.
+            if loc < 0 or loc > 999:
                 return
             mode = str(m.get('mode') or 'coop')
             if mode not in MODES:
@@ -1341,6 +1416,14 @@ def handle_message(c, m):
             if mt.check_end():
                 HUB.room_send(c.room, {'t': 'matchend', 'r': mt.results})
 
+    elif t == 'game':
+        # весточка по правилам мини-игры — остальным в комнате.
+        # Сервер в правила не вникает, только передаёт и подписывает,
+        # от кого пришло: подделать чужое имя так нельзя.
+        if c.room is None:
+            return
+        HUB.room_send(c.room, {'t': 'game', 'from': c.nick, 'd': m.get('d')}, skip=c)
+
     elif t == 'servers':
         HUB.send_catalog(c)
 
@@ -1350,7 +1433,10 @@ def handle_message(c, m):
         if mode not in MODES:
             mode = 'coop'
         loc = int(m.get('loc') or 0)
-        loc = max(0, min(99, loc))
+        # До 999, а не до 99: выше сотни живут новые локации и площадки
+        # мини-игр. Со старой границей свой футбольный сервер молча
+        # превращался в обычную локацию номер 99.
+        loc = max(0, min(999, loc))
         r, err = HUB.make_room(c.nick, name, mode, loc,
                                m.get('limit') or 30, str(m.get('code') or ''),
                                who=str(m.get('who') or 'all'),
@@ -1384,22 +1470,31 @@ def handle_message(c, m):
             c.send({'t': 'note', 'msg': 'Ваш сервер закрыт', 'kind': 'good'})
         HUB.broadcast_catalog()
 
+    elif t == 'place':
+        # Игрок сообщает, где он вне общей локации: дома, во дворе,
+        # на арене. Без этого друг всегда выглядел «в меню», и прийти
+        # к нему было некуда.
+        c.place = str(m.get('kind') or 'menu')[:16]
+        c.place_name = str(m.get('name') or '')[:40] or None
+
     elif t == 'follow':
-        # «зайти к другу»: сервер сам скажет, где он
+        # «в гости»: сервер всегда отвечает, где друг, — даже если
+        # прийти туда нельзя. Тогда игра предложит зайти к нему домой.
         ник = str(m.get('nick') or '')[:16]
         друг = HUB.by_nick(ник)
         свои = [x.lower() for x in STORE.friends(c.nick)]
         if not друг:
-            c.send({'t': 'note', 'msg': ник + ' сейчас не в игре', 'kind': 'warn'})
+            c.send({'t': 'goto', 'ok': False, 'why': 'offline', 'nick': ник})
             return
         if друг.nick.lower() not in свои:
-            c.send({'t': 'note', 'msg': 'Сначала подружитесь с ' + друг.nick, 'kind': 'warn'})
+            c.send({'t': 'goto', 'ok': False, 'why': 'notfriend', 'nick': друг.nick})
             return
         if друг.room is None:
-            c.send({'t': 'note', 'msg': друг.nick + ' пока в меню, не в игре', 'kind': 'warn'})
+            c.send({'t': 'goto', 'ok': False, 'why': друг.place or 'menu',
+                    'nick': друг.nick, 'placeName': друг.place_name})
             return
         r = HUB.room_of(друг.room)
-        c.send({'t': 'goto', 'srv': друг.room, 'loc': друг.loc,
+        c.send({'t': 'goto', 'ok': True, 'srv': друг.room, 'loc': друг.loc,
                 'mode': друг.mode, 'name': r.name if r else None,
                 'nick': друг.nick})
 
@@ -1662,7 +1757,25 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+
+    # Windows по SO_REUSEADDR разрешает ВТОРОМУ серверу сесть на уже
+    # занятый порт. Тогда два процесса делят один адрес, и подключения
+    # раскидывает между ними как попало: часть игроков попадает в один
+    # мир, часть в другой — хотя все выбирали «тот же самый сервер».
+    # Ловилось это тяжело: снаружи всё выглядит правильно.
+    # Поэтому на Windows порт просим монопольно, и второй запуск честно
+    # спотыкается. На Linux SO_REUSEADDR так не делает и нужен для
+    # быстрых перезапусков — там оставляем как было.
+    allow_reuse_address = (os.name != 'nt')
+
+    def server_bind(self):
+        искл = getattr(socket, 'SO_EXCLUSIVEADDRUSE', None)
+        if искл is not None:
+            try:
+                self.socket.setsockopt(socket.SOL_SOCKET, искл, 1)
+            except OSError:
+                pass
+        ThreadingHTTPServer.server_bind(self)
 
 
 class Server6(Server):
@@ -1680,7 +1793,7 @@ class Server6(Server):
             self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         except (AttributeError, OSError):
             pass
-        ThreadingHTTPServer.server_bind(self)
+        Server.server_bind(self)
 
 
 def local_ips():
@@ -1703,6 +1816,23 @@ def local_ips():
 
 
 RUNNING_PORT = PORT          # какой порт заняли на самом деле
+
+
+def уже_работает(port):
+    """
+    На этом порту уже сидят наши «Котики»?
+
+    Нужно, чтобы второй запуск не поднимал рядом ещё один сервер. Два
+    сервера — это два разных мира: игроки заходят «на один и тот же»
+    и не видят друг друга. Лучше просто открыть тот, что уже работает.
+    """
+    try:
+        import urllib.request
+        with urllib.request.urlopen(
+                'http://127.0.0.1:%d/api/status' % port, timeout=1.5) as r:
+            return json.loads(r.read().decode('utf-8')).get('ok') is True
+    except Exception:
+        return False
 
 
 def start_server():
@@ -1807,6 +1937,23 @@ def main():
                 signal.signal(сиг, прощаемся)
             except Exception:
                 pass
+
+    # Дома: если сервер уже запущен, второй не нужен — открываем тот.
+    if not FIXED_PORT and not CLOUD and уже_работает(PORT):
+        say('')
+        say('  🐱  Сервер «Котиков» уже запущен на этом компьютере.')
+        say('  Второй поднимать не надо: это был бы отдельный мир,')
+        say('  и вы бы не увидели друг друга. Открываю тот, что есть.')
+        say('')
+        say('  Адрес:  http://localhost:%d/' % PORT)
+        say('')
+        if os.environ.get('KMAGI_NOBROWSER') != '1':
+            open_browser(PORT, '--app' in sys.argv)
+        try:
+            input('  Нажмите Enter, чтобы закрыть это окно...')
+        except Exception:
+            pass
+        return
 
     try:
         srv, port = start_server()
