@@ -628,6 +628,12 @@ MODES = {
         'name': 'Прятки',
         'pvp': False, 'monsters': False, 'teams': False, 'goal': 0, 'time': 0,
     },
+    # Дом. Комната у каждого своя, поэтому её ключ — не «режим:номер»,
+    # а «home:ник». Драк тут нет: в гостях не дерутся.
+    'home': {
+        'name': 'Дом',
+        'pvp': False, 'monsters': False, 'teams': False, 'goal': 0, 'time': 0,
+    },
 }
 
 # У мини-игр нет обычной локации, поэтому им выданы свои номера.
@@ -1282,7 +1288,21 @@ def handle_message(c, m):
         HUB.broadcast_online()
 
     elif t == 'join':
-        srv = str(m.get('srv') or '')[:24]
+        # Дом — особый случай: комната заводится под ник хозяина и
+        # живёт, пока в ней кто-то есть. Раньше гость видел только
+        # снимок чужой комнаты и был там один.
+        дом = str(m.get('home') or '')[:16]
+        if дом:
+            ключ = 'home:' + дом.lower()
+            with HUB.lock:
+                if ключ not in HUB.rooms:
+                    HUB.rooms[ключ] = Room(ключ, 'Дом: ' + дом, 'home', 300, 8,
+                                           owner=дом, who='all', hidden=True)
+            m = dict(m)
+            m['srv'] = ключ
+            srv = ключ
+        else:
+            srv = str(m.get('srv') or '')[:24]
         room = HUB.room_of(srv) if srv else None
         if room is not None:
             # вход по строчке из списка серверов
@@ -1294,7 +1314,9 @@ def handle_message(c, m):
                 c.send({'t': 'joinerr', 'srv': room.key,
                         'msg': 'Хозяин этого сервера вас не пускает'})
                 return
-            if not свой and not дружим:
+            if room.mode == 'home':
+                pass                     # дом открыт: кого позвали, тот и зашёл
+            elif not свой and not дружим:
                 if room.who == 'friends':
                     c.send({'t': 'joinerr', 'srv': room.key,
                             'msg': 'Сюда пускают только друзей хозяина'})

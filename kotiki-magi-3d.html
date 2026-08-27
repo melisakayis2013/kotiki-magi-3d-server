@@ -2325,7 +2325,7 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   <div id="fatal" class="hidden"></div>
 </div>
 
-<script>window.KM=window.KM||{};KM.ВЕРСИЯ=196;</script><script>
+<script>window.KM=window.KM||{};KM.ВЕРСИЯ=198;</script><script>
 /* Адреса вшиты при сборке — игра найдёт сервер сама. */
 window.KM = window.KM || {};
 KM.SERVER_LIST = ["192.168.112.174:8765"];
@@ -24573,7 +24573,16 @@ void main(){
     вСаду() { return !!(this.level && this.level.сад); }
 
     enterRoom(гость) {
-      if (this.net) { this.net.leaveRoom(); this.net.sendPlace('room', 'дома'); }
+      // Дом — обычная комната на сервере: и хозяин, и гости в одной.
+      // Раньше вход в гости выходил из сети, и друга не было видно —
+      // была видна только его мебель.
+      if (this.net) {
+        const хозяин = гость ? гость.nick
+          : (KM.ACCOUNT.current() ? KM.ACCOUNT.current().nick : null);
+        const вместе = хозяин && this.net.status === 'online' && this.net.joinHome(хозяин);
+        if (!вместе) this.net.leaveRoom();
+        this.net.sendPlace('room', гость ? ('в гостях у ' + гость.nick) : 'дома');
+      }
       this.смена++;
       if (!KM.ROOM) return;
       this.изСада = this.вСаду();
@@ -24629,6 +24638,9 @@ void main(){
     leaveRoom() {
       this.смена++;
       this.ui.showHouseBar(false);
+      // Дом теперь настоящая комната на сервере — выходя, надо из неё
+      // выйти. Иначе для остальных кот так и остаётся стоять в доме.
+      if (this.net && this.net.mode === 'home') this.net.leaveRoom();
       const изСада = this.изСада && !this.roomGuest;
       this.roomEdit = null;
       this.roomGuest = null;
@@ -25646,7 +25658,8 @@ void main(){
     parkour: { name: 'Небесная тропа', pvp: false, monsters: false, teams: false, goal: 0, time: 0 },
     race: { name: 'Кошачьи гонки', pvp: false, monsters: false, teams: false, goal: 0, time: 0 },
     duel: { name: 'Дуэль', pvp: true, monsters: false, teams: true, goal: 0, time: 0 },
-    hide: { name: 'Прятки', pvp: false, monsters: false, teams: false, goal: 0, time: 0 }
+    hide: { name: 'Прятки', pvp: false, monsters: false, teams: false, goal: 0, time: 0 },
+    home: { name: 'Дом', pvp: false, monsters: false, teams: false, goal: 0, time: 0 }
   };
 
   // ============================================================
@@ -31879,6 +31892,24 @@ void main(){
       if (this._место === kind + '|' + (name || '')) return;   // не повторяемся
       this._место = kind + '|' + (name || '');
       this.send({ t: 'place', kind: kind, name: name || '' });
+    }
+
+    /**
+     * Войти в дом — свой или чужой.
+     * Комната заводится под ник хозяина, поэтому гость и хозяин
+     * оказываются в одной и той же, а не каждый в своей копии.
+     */
+    joinHome(nick) {
+      if (this.status !== 'online' || !nick) return false;
+      this.room = 300;
+      this.mode = 'home';
+      this.team = null;
+      this.match = null;
+      this.isHost = false;
+      this.hostId = 0;
+      this.peers.clear();
+      this.send({ t: 'join', home: nick, name: 'Дом: ' + nick });
+      return true;
     }
 
     goToFriend(nick, cb) {
