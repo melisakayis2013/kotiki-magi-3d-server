@@ -1583,6 +1583,16 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   #tour .t-box{left:50%!important;top:auto!important;bottom:14px;transform:translateX(-50%)!important}
 }
 
+/* ---------- запись ролика ---------- */
+#rec{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:40;
+  display:none;align-items:center;gap:9px;padding:7px 15px;
+  background:rgba(13,10,26,.85);box-shadow:0 0 0 2px #000,0 0 0 4px #d33;
+  font-family:"Trebuchet MS",sans-serif;color:#fff;font-size:15px;font-weight:800}
+#rec.on{display:flex}
+#rec .dot{width:13px;height:13px;border-radius:50%;background:#ff3b3b;
+  animation:мигаетЗапись 1s ease-in-out infinite}
+@keyframes мигаетЗапись{0%,100%{opacity:1}50%{opacity:.25}}
+
 </style>
 </head>
 <body>
@@ -2325,7 +2335,7 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   <div id="fatal" class="hidden"></div>
 </div>
 
-<script>window.KM=window.KM||{};KM.ВЕРСИЯ=198;</script><script>
+<script>window.KM=window.KM||{};KM.ВЕРСИЯ=199;</script><script>
 /* Адреса вшиты при сборке — игра найдёт сервер сама. */
 window.KM = window.KM || {};
 KM.SERVER_LIST = [];
@@ -24870,6 +24880,8 @@ void main(){
       if (input.justPressed('Escape')) { this.ui.pause(); return; }
       if (input.justPressed('KeyI')) { this.ui.openInventory(); return; }
       if (input.justPressed('KeyM')) { this.ui.toggleMinimap(); }
+      // F9 — записать ролик прямо из игры
+      if (input.justPressed('F9') && KM.ЗАПИСЬ) KM.ЗАПИСЬ.переключить(this);
       if (input.justPressed('KeyP')) { this.ui.takeShot(); }
 
       // Пока идёт встреча, кот стоит: он ещё в портале, а камера
@@ -39320,6 +39332,34 @@ void main(){
       const box = $('#settings-list');
       box.innerHTML = '';
 
+      // ---------- запись ролика ----------
+      if (KM.ЗАПИСЬ && KM.ЗАПИСЬ.можно()) {
+        box.appendChild(el('div', 'set-note', 'ЗАПИСЬ РОЛИКА'));
+        const ряд = el('div', 'q-row');
+        ряд.innerHTML =
+          '<div class="ic">🎬</div>' +
+          '<div class="info"><div class="nm">Записать, как вы играете</div>' +
+          '<div class="ds">Нажмите — и играйте как обычно. Чтобы остановить, ' +
+          'нажмите <b>F9</b> или вернитесь сюда. Готовый файл появится ' +
+          'в папке «Загрузки». Меню и рабочий стол в кадр не попадают.</div></div>' +
+          '<div class="prize"></div>';
+        const кн = el('button', 'btn btn-sm ' + (KM.ЗАПИСЬ.идёт ? 'btn-danger' : 'btn-good'),
+          KM.ЗАПИСЬ.идёт ? '⏹ Стоп' : '🔴 Писать');
+        кн.onclick = () => {
+          if (KM.ЗАПИСЬ.идёт) {
+            KM.ЗАПИСЬ.стоп(g);
+            this.buildSettings();
+          } else {
+            KM.ЗАПИСЬ.начать(g);
+            // уходим с экрана: в кадре должно быть только то, что в игре
+            if (g.level && g.mode === 'paused') this.resume();
+            else this.show('menu');
+          }
+        };
+        ряд.querySelector('.prize').appendChild(кн);
+        box.appendChild(ряд);
+      }
+
       // ---------- язык ----------
       box.appendChild(el('div', 'set-note', 'ЯЗЫК'));
       const яз = el('div', 'lang-row');
@@ -40500,6 +40540,159 @@ void main(){
   };
 
   KM.TOUR = ЭКСКУРСИЯ;
+})(window);
+
+</script>
+    <script>
+/**
+ * ЗАПИСЬ РОЛИКА
+ *
+ * Кнопка «запись» прямо в игре. Нажала — играешь как обычно, нажала
+ * ещё раз — готовый файл падает в «Загрузки».
+ *
+ * Записывается сама картинка игры, без меню и без рабочего стола:
+ * браузер умеет отдавать видеопоток прямо с холста, на котором игра
+ * и рисуется. Значит, не нужна никакая отдельная программа для
+ * записи экрана, и в кадр не попадёт ничего лишнего.
+ *
+ * Звука тут нет: музыка в игре живёт отдельно от картинки, и
+ * поймать её тем же способом нельзя. Звук проще наложить потом.
+ */
+(function (global) {
+  'use strict';
+  const KM = global.KM;
+
+  const ЗАПИСЬ = {
+    идёт: false,
+    начало: 0,
+
+    /** Умеет ли браузер записывать. Старые — не умеют. */
+    можно() {
+      return !!(global.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+    },
+
+    переключить(game) {
+      if (this.идёт) this.стоп(game); else this.начать(game);
+    },
+
+    начать(game) {
+      if (this.идёт) return;
+      if (!this.можно()) {
+        game.ui.toast('Этот браузер не умеет записывать. Попробуйте Chrome', 'warn', 4000);
+        return;
+      }
+      const холст = document.querySelector('#gl');
+      if (!холст) return;
+
+      let поток;
+      try {
+        поток = холст.captureStream(30);
+      } catch (e) {
+        game.ui.toast('Не получилось начать запись', 'warn', 3000);
+        return;
+      }
+
+      // Ищем формат, который браузер точно умеет. Порядок от лучшего
+      // к тому, что есть везде.
+      const виды = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8',
+                    'video/webm', 'video/mp4'];
+      let вид = '';
+      for (const в of виды) {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(в)) { вид = в; break; }
+      }
+
+      try {
+        this.писец = new MediaRecorder(поток, вид
+          ? { mimeType: вид, videoBitsPerSecond: 6000000 }
+          : { videoBitsPerSecond: 6000000 });
+      } catch (e) {
+        game.ui.toast('Не получилось начать запись', 'warn', 3000);
+        return;
+      }
+
+      this.куски = [];
+      this.вид = вид || 'video/webm';
+      this.писец.ondataavailable = (e) => {
+        if (e.data && e.data.size) this.куски.push(e.data);
+      };
+      this.писец.onstop = () => this.сохранить(game);
+      this.писец.start(1000);           // складываем по секунде
+
+      this.идёт = true;
+      this.начало = Date.now();
+      this.показать(true);
+      game.ui.toast('🔴 Пишем! Нажмите F9, чтобы остановить', 'good', 3200);
+      if (game.audio) game.audio.sfx('ui');
+    },
+
+    стоп(game) {
+      if (!this.идёт) return;
+      this.идёт = false;
+      this.показать(false);
+      try { this.писец.stop(); } catch (e) { /* уже остановлен */ }
+      game.ui.toast('Готовим файл…', 'info', 2500);
+    },
+
+    сохранить(game) {
+      const куски = this.куски || [];
+      this.куски = [];
+      if (!куски.length) {
+        game.ui.toast('Записать не вышло — ничего не попало в кадр', 'warn', 4000);
+        return;
+      }
+      const ком = new Blob(куски, { type: this.вид });
+      const секунд = Math.round((Date.now() - this.начало) / 1000);
+      const имя = 'котики-' + новоеИмя() + '.webm';
+
+      const url = URL.createObjectURL(ком);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = имя;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 2000);
+
+      const мб = (ком.size / 1048576).toFixed(1);
+      game.ui.bigMessage('🎬 Ролик готов',
+        имя + ' · ' + секунд + ' сек · ' + мб + ' МБ<br>Файл в папке «Загрузки»');
+      if (game.audio) game.audio.sfx('win');
+    },
+
+    /** Красная точка со временем, пока идёт запись. */
+    показать(вкл) {
+      let э = document.querySelector('#rec');
+      if (!э) {
+        э = document.createElement('div');
+        э.id = 'rec';
+        э.innerHTML = '<span class="dot"></span><b>0:00</b>';
+        document.body.appendChild(э);
+      }
+      э.classList.toggle('on', !!вкл);
+      if (вкл) {
+        const тик = () => {
+          if (!this.идёт) return;
+          const с = Math.floor((Date.now() - this.начало) / 1000);
+          э.querySelector('b').textContent =
+            Math.floor(с / 60) + ':' + String(с % 60).padStart(2, '0');
+          setTimeout(тик, 500);
+        };
+        тик();
+      }
+    }
+  };
+
+  /** Имя по времени — чтобы файлы не затирали друг друга. */
+  function новоеИмя() {
+    const d = new Date();
+    const дв = (n) => String(n).padStart(2, '0');
+    return дв(d.getDate()) + '-' + дв(d.getMonth() + 1) + '-' +
+      дв(d.getHours()) + дв(d.getMinutes()) + дв(d.getSeconds());
+  }
+
+  KM.ЗАПИСЬ = ЗАПИСЬ;
 })(window);
 
 </script>
