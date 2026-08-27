@@ -190,7 +190,7 @@ def выбрать_хранилище():
 class Store:
     """Друзья и заявки живут в server_data.json, чтобы не пропасть."""
 
-    ПОЛЯ = ('friends', 'requests', 'seen', 'users', 'dm', 'unread')
+    ПОЛЯ = ('friends', 'requests', 'seen', 'users', 'dm', 'unread', 'счёт')
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -494,6 +494,68 @@ class Store:
 STORE = Store()
 
 
+
+
+# ============================================================
+#  СЧЁТЧИК ПОСЕЩЕНИЙ
+#
+#  Считаем по дням: сколько раз открыли страницу, сколько раз
+#  запустили игру и сколько раз её скачали. Отдельно — сколько
+#  это было разных людей.
+#
+#  Кто именно приходил, мы не храним. От адреса берётся короткий
+#  отпечаток, и по нему нельзя узнать ни адрес, ни человека, —
+#  он нужен только чтобы не посчитать одного гостя десять раз.
+#  Отпечатки старше недели выбрасываются.
+# ============================================================
+import hashlib
+
+
+def _сегодня():
+    return time.strftime('%Y-%m-%d')
+
+
+def отметить(вид, адрес):
+    """Записать одно посещение."""
+    try:
+        день = _сегодня()
+        отпечаток = hashlib.sha256(
+            ('котики' + str(адрес)).encode('utf-8')).hexdigest()[:12]
+        with STORE.lock:
+            счёт = STORE.data.setdefault('счёт', {})
+            д = счёт.setdefault(день, {'страница': 0, 'игра': 0, 'скачали': 0, 'гости': []})
+            д[вид] = д.get(вид, 0) + 1
+            if отпечаток not in д['гости']:
+                д['гости'].append(отпечаток)
+            # старше недели не держим
+            дни = sorted(счёт.keys())
+            while len(дни) > 7:
+                счёт.pop(дни.pop(0), None)
+            STORE.dirty = True
+    except Exception:
+        pass          # счётчик не должен ронять сервер
+
+
+def сводка():
+    """Что показать хозяйке сайта."""
+    счёт = (STORE.data.get('счёт') or {})
+    строки = []
+    всего = {'страница': 0, 'игра': 0, 'скачали': 0, 'людей': 0}
+    for день in sorted(счёт.keys(), reverse=True):
+        д = счёт[день]
+        людей = len(д.get('гости') or [])
+        строки.append({
+            'день': день,
+            'страница': д.get('страница', 0),
+            'игра': д.get('игра', 0),
+            'скачали': д.get('скачали', 0),
+            'людей': людей,
+        })
+        всего['страница'] += д.get('страница', 0)
+        всего['игра'] += д.get('игра', 0)
+        всего['скачали'] += д.get('скачали', 0)
+        всего['людей'] += людей
+    return {'дни': строки, 'всего': всего}
 
 
 # ============================================================
@@ -1675,6 +1737,42 @@ class Handler(BaseHTTPRequestHandler):
             ws_loop(sock)
             return
 
+        # --- сколько народу заходило ---
+        if path == '/api/gosti':
+            с = сводка()
+            стр = ['<!doctype html><meta charset="utf-8">',
+                   '<title>Гости — Котики Маги 3D</title>',
+                   '<style>body{background:#0b0720;color:#f4ecff;'
+                   'font-family:"Trebuchet MS",sans-serif;padding:24px;line-height:1.6}'
+                   'h1{color:#ffd166}table{border-collapse:collapse;margin-top:14px}'
+                   'td,th{padding:8px 14px;border:1px solid #3a2d78;text-align:left}'
+                   'th{background:#1b1240;color:#6ae0ff}'
+                   '.b{font-size:30px;color:#ffd166}</style>',
+                   '<h1>🐾 Кто заходил</h1>']
+            в = с['всего']
+            стр.append('<p>За последнюю неделю:</p>')
+            стр.append('<p><span class="b">%d</span> разных людей &nbsp; '
+                       '<span class="b">%d</span> раз открывали страницу &nbsp; '
+                       '<span class="b">%d</span> раз запускали игру &nbsp; '
+                       '<span class="b">%d</span> раз скачали</p>'
+                       % (в['людей'], в['страница'], в['игра'], в['скачали']))
+            стр.append('<table><tr><th>День</th><th>Людей</th><th>Страница</th>'
+                       '<th>Играли</th><th>Скачали</th></tr>')
+            for д in с['дни']:
+                стр.append('<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>'
+                           % (д['день'], д['людей'], д['страница'], д['игра'], д['скачали']))
+            стр.append('</table>')
+            стр.append('<p style="opacity:.6;margin-top:18px">Считается неделя. '
+                       'Кто именно приходил, не сохраняется.</p>')
+            body = ''.join(стр).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         # --- сервер жив? ---
         if path == '/api/status':
             body = json.dumps({
@@ -1735,6 +1833,12 @@ class Handler(BaseHTTPRequestHandler):
         rel = unquote(path).lstrip('/')
         if rel == '':
             rel = 'index.html'
+        # что именно открыли — для счётчика
+        if not head:
+            вид = {'index.html': 'страница', 'igra.html': 'игра',
+                   'kotiki-magi-3d.html': 'скачали'}.get(rel)
+            if вид:
+                отметить(вид, self.client_address[0] if self.client_address else '?')
         full = os.path.normpath(os.path.join(ROOT, rel))
         if not full.startswith(ROOT) or not os.path.isfile(full):
             self.send_error(404, 'not found')
