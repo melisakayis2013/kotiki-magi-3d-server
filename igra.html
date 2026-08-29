@@ -2369,7 +2369,7 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   <div id="fatal" class="hidden"></div>
 </div>
 
-<script>window.KM=window.KM||{};KM.ВЕРСИЯ=206;</script><script>
+<script>window.KM=window.KM||{};KM.ВЕРСИЯ=207;</script><script>
 /* Адреса вшиты при сборке — игра найдёт сервер сама. */
 window.KM = window.KM || {};
 KM.SERVER_LIST = [];
@@ -29998,6 +29998,12 @@ void main(){
 
   KM.I18N.add('en', {
     '🐾 ТОТ ЖЕ НИК': '🐾 THE SAME NICKNAME',
+    '🔑 Войти под другим ником': '🔑 Sign in with another nickname',
+    'Этим ником уже играют на другом устройстве.': 'Someone is already playing with this nickname on another device.',
+    'Один ник — одно устройство: иначе по серверу ходили бы два одинаковых кота, и никто бы не понял, кто где.': 'One nickname, one device: otherwise two identical cats would walk the server and nobody could tell who is who.',
+    'Если вторым устройством никто не играет — закройте игру там и нажмите «Войти под другим ником», чтобы вернуться этим.': 'If nobody is playing on the other device, close the game there and press “Sign in with another nickname” to come back on this one.',
+    '▶ Продолжить игру': '▶ Continue playing',
+    '📲 Установить': '📲 Install',
     '✨ Завести второй ник': '✨ Make a second nickname',
     'Понятно': 'Got it',
     'Вы сейчас здесь': 'You are here right now',
@@ -32077,6 +32083,12 @@ void main(){
 
   KM.I18N.add('tr', {
     '🐾 ТОТ ЖЕ НИК': '🐾 AYNI TAKMA AD',
+    '🔑 Войти под другим ником': '🔑 Başka bir takma adla gir',
+    'Этим ником уже играют на другом устройстве.': 'Bu takma adla başka bir cihazda çoktan oynuyorlar.',
+    'Один ник — одно устройство: иначе по серверу ходили бы два одинаковых кота, и никто бы не понял, кто где.': 'Bir takma ad, bir cihaz: yoksa sunucuda iki aynı kedi dolaşır ve kimse kimin kim olduğunu anlayamaz.',
+    'Если вторым устройством никто не играет — закройте игру там и нажмите «Войти под другим ником», чтобы вернуться этим.': 'Diğer cihazda kimse oynamıyorsa oradaki oyunu kapatın ve bu cihaza dönmek için “Başka bir takma adla gir” tuşuna basın.',
+    '▶ Продолжить игру': '▶ Oyuna devam et',
+    '📲 Установить': '📲 Yükle',
     '✨ Завести второй ник': '✨ İkinci bir takma ad aç',
     'Понятно': 'Anladım',
     'Вы сейчас здесь': 'Şu anda buradasın',
@@ -32510,6 +32522,7 @@ void main(){
       ws.onopen = () => {
         clearTimeout(this._openTimer);
         this.tries = 0;
+        this.никЗанят = false;
         this.status = 'online';
         this.reason = '';
         this.hello();
@@ -32932,8 +32945,12 @@ void main(){
           if (m.fatal) {
             this.status = 'error'; this.reason = m.msg;
             // отдельный случай: тем же ником зашли с другого устройства
-            if (m.why === 'nick' && this.game.ui && this.game.ui.никЗанят) {
-              this.game.ui.никЗанят();
+            if (m.why === 'nick') {
+              // Запоминаем причину. Иначе экран серверов покажет общее
+              // «связи нет» и кнопку «искать сервера» — а искать тут
+              // нечего: сервер на месте, просто ником уже играют.
+              this.никЗанят = true;
+              if (this.game.ui && this.game.ui.никЗанят) this.game.ui.никЗанят();
             }
             this.changed();
           }
@@ -36175,6 +36192,37 @@ void main(){
           n.findServer(true);
         }
         if (n.status === 'error') this.fileWarning(box);
+        return;
+      }
+
+      // ---- тем же ником уже играют с другого устройства ----
+      // Это не поломка связи, и «искать сервера» тут не поможет:
+      // сервер на месте, просто ник занят своим же вторым устройством.
+      // Раньше на этом месте было общее «связи нет», человек жал
+      // «искать» — и, конечно, ничего не менялось.
+      if (n.status !== 'online' && n.никЗанят) {
+        const мой = (KM.ACCOUNT.current() || {}).nick || 'Кот';
+        const б = el('div', 'acc-note');
+        б.innerHTML =
+          '<b style="color:#ff8a9a">Этим ником уже играют на другом устройстве.</b><br><br>' +
+          'Один ник — одно устройство: иначе по серверу ходили бы два одинаковых кота, ' +
+          'и никто бы не понял, кто где.<br><br>' +
+          '<b>Чтобы играть вдвоём</b> — на втором устройстве нужен <b>свой ник</b>. ' +
+          'Например, «' + мой + '2» или имя сестры. Прогресс у каждого свой, ' +
+          'а друг друга вы увидите как друзья и сможете зайти в один сервер.';
+        box.appendChild(б);
+
+        const зав = el('button', 'btn btn-big btn-good', '✨ Завести второй ник');
+        зав.onclick = () => { g.audio.sfx('ui'); this.show('signup'); };
+        box.appendChild(зав);
+
+        const вх = el('button', 'btn', '🔑 Войти под другим ником');
+        вх.onclick = () => { g.audio.sfx('ui'); this.loginPick = null; this.show('login'); };
+        box.appendChild(вх);
+
+        box.appendChild(el('div', 'hint',
+          'Если вторым устройством никто не играет — закройте игру там ' +
+          'и нажмите «Войти под другим ником», чтобы вернуться этим.'));
         return;
       }
 
