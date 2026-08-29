@@ -39,5 +39,42 @@
       "purpose": "any"
     }
   ],
-  "id": "/igra.html"
+  "id": "/igra.html",
+  "screenshots": [
+    {
+      "src": "store/shot1.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Кубический мир и сто тридцать локаций"
+    },
+    {
+      "src": "store/shot2.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Разные края: снега, пустыни, пещеры"
+    },
+    {
+      "src": "store/shot3.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Играть можно за любого из семидесяти зверей"
+    },
+    {
+      "src": "store/shot4.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Семьдесят зверей — от котов до тигров и слонят"
+    },
+    {
+      "src": "store/shot5.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Размер и возраст выбираешь сам"
+    }
+  ]
 }
