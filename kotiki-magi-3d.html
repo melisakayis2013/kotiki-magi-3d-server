@@ -614,6 +614,10 @@ body[data-device="phone"] .ah-line{font-size:10.5px}
 .srv-where .w-t{font-size:10.5px;color:var(--dim);letter-spacing:1px}
 .srv-where .w-n{font-size:15px;font-weight:800;color:var(--cyan);margin:2px 0}
 .srv-where .w-a{font-size:11px;color:var(--dim);word-break:break-all}
+/* в каком сервере кот на самом деле — отдельной строкой, чтобы связь не выдавала себя за игру */
+.srv-where .w-in{margin-top:8px;padding-top:7px;border-top:2px solid rgba(0,0,0,.45);
+  font-size:12.5px;font-weight:800;color:var(--dim)}
+.srv-where .w-in.on{color:var(--mint)}
 .mode-in{display:flex;gap:12px;align-items:flex-start}
 .mode-pic{display:block;width:100%;height:auto;image-rendering:pixelated;
   box-shadow:0 0 0 2px #000;margin-bottom:8px}
@@ -1535,6 +1539,10 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
 }
 /* панель под котом */
 #tryon{
+  /* Панель лежит внутри #screens, а там клики нарочно проходят
+     насквозь — чтобы мышь доставала до 3D-сцены. Кнопкам это надо
+     отменить, иначе нажатие пролетает мимо и ничего не происходит. */
+  pointer-events:auto;
   position:fixed;right:3vw;bottom:5vh;z-index:7;
   width:min(330px,36vw);padding:12px 14px;text-align:center;
   background:linear-gradient(180deg,#241c50,#161038);
@@ -2335,11 +2343,11 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   <div id="fatal" class="hidden"></div>
 </div>
 
-<script>window.KM=window.KM||{};KM.ВЕРСИЯ=199;</script><script>
+<script>window.KM=window.KM||{};KM.ВЕРСИЯ=200;</script><script>
 /* Адреса вшиты при сборке — игра найдёт сервер сама. */
 window.KM = window.KM || {};
-KM.SERVER_LIST = ["192.168.112.174:8765"];
-KM.SUBNETS = ["192.168.112."];
+KM.SERVER_LIST = ["192.168.1.8:8765"];
+KM.SUBNETS = ["192.168.1."];
 KM.SERVER_PORT = 8765;
 </script>
 <script>
@@ -8506,6 +8514,12 @@ void main(){
   KM.locationInfo = function (i) {
     const region = Math.floor(i / 10);
     const b = BIOMES[region];
+    // Номер бывает и не наш: у мини-игр свои площадки, у домов — свой
+    // номер, а с сервера может прийти что угодно. Раньше на таком
+    // номере функция падала, и вместе с ней падал весь список серверов.
+    // Теперь возвращаем заглушку: одна непонятная строчка не должна
+    // ломать экран целиком.
+    if (!b) return null;
     const inRegion = i % 10;
     const isBoss = inRegion === 9;
     const hasCages = isBoss || inRegion === 4;
@@ -12768,9 +12782,18 @@ void main(){
       });
     },
 
-    /** Всё содержимое комнаты. */
+    /**
+     * Всё содержимое комнаты.
+     *
+     * В гостях рисуем комнату хозяина, а не свою. Раньше тут всегда
+     * стояло game.state — и гость приходил к другу, а видел собственную
+     * мебель на чужих стенах. Стены и мебель, об которые кот спотыкается,
+     * при этом строились по хозяйской комнате, так что картинка ещё и
+     * расходилась с тем, где на самом деле нельзя пройти.
+     */
     draw(game, batch, alpha, t) {
-      const S = game.state;
+      const гость = game.roomGuest;
+      const S = гость ? (гость.S || { data: { room: гость.room || null } }) : game.state;
       this.рисоватьКомнату(S, batch, alpha, t);
       const r = комната(S);
       for (const в of r.вещи) this.рисоватьВещь(в, batch, alpha, t, game);
@@ -24598,8 +24621,13 @@ void main(){
       this.изСада = this.вСаду();
       if (this.player && this.player.paw) this.player.stowPaw();
       this.roomGuest = гость || null;          // чужая комната — только смотрим
+      // Чужую комнату оборачиваем один раз и держим при себе: по ней
+      // и стены строятся, и мебель рисуется каждый кадр. Если делать
+      // новую обёртку на каждый кадр, у друга без мебели игра будет
+      // без конца создавать пустую комнату заново.
+      if (this.roomGuest) this.roomGuest.S = { data: { room: гость.room || null } };
       const S = this.state;
-      const level = KM.ROOM.создатьУровень(гость ? { data: { room: гость.room } } : S);
+      const level = KM.ROOM.создатьУровень(this.roomGuest ? this.roomGuest.S : S);
       this.level = level;
       this.levelIndex = -1;
       this.levelTime = 0;
@@ -24647,6 +24675,10 @@ void main(){
      */
     leaveRoom() {
       this.смена++;
+      // Уходим из дома — отправляем комнату, не дожидаясь таймера.
+      if (!this.roomGuest && this.ui && this.ui.комнатаНаСерверСразу) {
+        this.ui.комнатаНаСерверСразу();
+      }
       this.ui.showHouseBar(false);
       // Дом теперь настоящая комната на сервере — выходя, надо из неё
       // выйти. Иначе для остальных кот так и остаётся стоять в доме.
@@ -24678,6 +24710,9 @@ void main(){
       const level = KM.ROOM.создатьУровень(this.state);
       this.level = level;
       this.player.x = x; this.player.z = z; this.player.yaw = yaw;
+      // Переставили мебель — пусть и на сервере комната станет такой же,
+      // иначе гости увидят её прежней или вовсе пустой.
+      if (this.ui && this.ui.комнатаНаСервер) this.ui.комнатаНаСервер();
     }
 
     /** K в комнате: поставить вещь, убрать вещь или выйти в дверь. */
@@ -31668,8 +31703,11 @@ void main(){
       const chat = this.game.chat;
       if (!chat) return;
       switch (m.kind) {
-        case 'online': chat.event('🌐', m.nick + ' зашёл на сервер', 'join'); break;
-        case 'offline': chat.event('🌙', m.nick + ' ушёл с сервера', 'leave'); break;
+        // «Появился в сети» — это ещё не сервер: человек просто открыл
+        // игру и стоит в меню. В сервер он заходит кнопкой «Играть»,
+        // и вот об этом говорит 'enter'.
+        case 'online': chat.event('🌐', m.nick + ' появился в сети', 'join'); break;
+        case 'offline': chat.event('🌙', m.nick + ' вышел из игры', 'leave'); break;
         case 'enter': chat.event('➡️', m.nick + ' пришёл сюда', 'join'); break;
         case 'exit': chat.event('⬅️', m.nick + ' покинул локацию', 'leave'); break;
         case 'pvp': chat.event('⚔️', (m.by || 'кто-то') + ' победил ' + m.nick + ' в дружеской драке', 'pvp'); break;
@@ -34929,15 +34967,29 @@ void main(){
       const свои = n.servers.filter(s2 => s2.own);
       const общие = n.servers.filter(s2 => !s2.own);
 
-      // Где мы сейчас. Это важнее, чем кажется: на разных адресах
-      // сервера называются одинаково, и «Дружная поляна» на компьютере
-      // и на телефоне — это два разных места. Пока адрес не совпадёт,
-      // друг друга не видно.
+      // ДВЕ РАЗНЫЕ ВЕЩИ, КОТОРЫЕ ЛЕГКО ПЕРЕПУТАТЬ.
+      //
+      // Связь — это провод до общего дома, куда съезжаются все игроки.
+      // Она включается сама, едва игру открыли, и сама по себе ничего
+      // не значит: кот всё ещё стоит в меню.
+      //
+      // Сервер — это уже игра: комната, куда заходят кнопкой «Играть».
+      //
+      // Раньше тут было написано «Вы сейчас здесь» и название связи —
+      // и выходило, что игрок как будто уже в сервере, хотя он его
+      // даже не выбирал. Поэтому теперь честно: сверху связь, под ней
+      // отдельной строкой — в каком сервере кот на самом деле.
       const где = el('div', 'srv-where');
+      const вИгре = n.room !== null;
       где.innerHTML =
-        '<div class="w-t">Вы сейчас здесь</div>' +
+        '<div class="w-t">СВЯЗЬ</div>' +
         '<div class="w-n">🛰 ' + n.имяСервера() + '</div>' +
-        '<div class="w-a">' + n.адресСервера() + '</div>';
+        '<div class="w-a">' + n.адресСервера() + '</div>' +
+        '<div class="w-in' + (вИгре ? ' on' : '') + '">' +
+        (вИгре
+          ? '▶ Вы в сервере «' + (n.srvName || n.имяСервера()) + '»'
+          : '⌂ Вы пока ни в одном сервере — выберите ниже') +
+        '</div>';
       box.appendChild(где);
 
       box.appendChild(el('div', 'acc-note',
@@ -35290,6 +35342,39 @@ void main(){
       });
     }
 
+    /**
+     * КОМНАТУ ПЕРЕСТАВИЛИ — СКАЗАТЬ ОБ ЭТОМ СЕРВЕРУ.
+     *
+     * Гости смотрят не на живую комнату, а на её снимок в профиле на
+     * сервере. Раньше этот снимок обновлялся только когда игрок правил
+     * профиль — менял картинку, имя или цвет. Мебель можно было
+     * расставлять хоть весь вечер: на сервере комната так и оставалась
+     * пустой, и друг, зайдя в гости, видел голые стены (а чаще игра
+     * вовсе не пускала его внутрь со словами «тут пусто»).
+     *
+     * Шлём не сразу: пока вещи ставят одну за другой, ждём пару секунд
+     * тишины и отправляем один раз — иначе каждый стул улетал бы на
+     * сервер отдельным письмом.
+     */
+    комнатаНаСервер() {
+      const n = this.net();
+      if (!KM.ACCOUNT.current() || !n || n.status !== 'online') return;
+      clearTimeout(this._комнатаТаймер);
+      this._комнатаТаймер = setTimeout(() => {
+        this._комнатаТаймер = 0;
+        this.pushProfile();
+      }, 2000);
+    }
+
+    /** То же, но немедленно: выходим из дома — ждать уже нечего. */
+    комнатаНаСерверСразу() {
+      clearTimeout(this._комнатаТаймер);
+      this._комнатаТаймер = 0;
+      const n = this.net();
+      if (!KM.ACCOUNT.current() || !n || n.status !== 'online') return;
+      this.pushProfile();
+    }
+
     // ============================================================
     //  ЗАДАНИЯ НА ДЕНЬ
     //  Три дела, которые обновляются каждый день. Нужны затем, чтобы
@@ -35557,6 +35642,7 @@ void main(){
               } else g.audio.sfx('ui');
               r[поле] = о.id;
               S.save();
+              this.комнатаНаСервер();     // обои друзья тоже увидят
               this.refreshCoins();
               this.buildRoom();
             };
@@ -36674,7 +36760,7 @@ void main(){
         r.innerHTML = '<span class="sf-k">' + что + '</span><span class="sf-v">' + значение + '</span>';
         факты.appendChild(r);
       };
-      факт('Где', игра ? 'своя площадка' : место.fullName);
+      факт('Где', игра ? 'своя площадка' : (место ? место.fullName : 'неизвестное место'));
       факт('Котов внутри', srv.players + ' из ' + srv.limit + (полно ? ' · мест нет' : ''));
       if (srv.owner) факт('Хозяин', srv.owner === n.nick ? 'вы' : srv.owner);
       факт('Кого пускают', srv.who === 'friends' ? 'только друзей хозяина' : 'всех');
@@ -37925,11 +38011,16 @@ void main(){
       this.toast('Стучимся к ' + ник + '…', 'info', 2000);
       n.onCatRoom = (кто, комната) => {
         n.onCatRoom = null;
-        if (!комната || !комната.вещи || !комната.вещи.length) {
-          this.toast('У ' + кто + ' пока пустая комната', 'info', 3200);
-          return;
+        // Пустая комната — всё равно комната. Раньше игра разворачивала
+        // гостя у порога: «у него пусто» — и внутрь было не попасть,
+        // хотя друг мог просто ещё ничего не расставить. Теперь заходим
+        // всегда, а про пустоту говорим уже внутри.
+        const пусто = !комната || !комната.вещи || !комната.вещи.length;
+        g.enterRoom({ nick: кто, room: комната || null });
+        if (пусто) {
+          this.toast('У ' + кто + ' тут пока пусто — мебель ещё не расставлена',
+            'info', 4200);
         }
-        g.enterRoom({ nick: кто, room: комната });
         if (KM.ACHIEVE) KM.ACHIEVE.note(g, 'guest', 1);
       };
       n.askCatRoom(ник);
