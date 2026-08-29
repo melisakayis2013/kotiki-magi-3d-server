@@ -1531,6 +1531,32 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
 .srv-facts .sf-k{color:var(--dim)}
 .srv-facts .sf-v{color:var(--cream);text-align:right;font-weight:700}
 
+/* ---------- облик: размер, возраст, пол ---------- */
+.oblik{padding:11px 12px;margin:10px 0 12px;
+  background:linear-gradient(180deg,#241c50,#171038);
+  box-shadow:0 0 0 2px #000,0 0 0 4px #3a2d78}
+.oblik .ob-t{font-size:12px;font-weight:800;color:var(--gold);letter-spacing:1px;margin-bottom:8px}
+.oblik .ob-l{font-size:11px;font-weight:800;color:var(--dim);letter-spacing:1px;margin:8px 0 4px}
+.oblik .ob-row{display:flex;flex-wrap:wrap;gap:5px}
+.oblik .ob-b{font:inherit;font-size:11.5px;font-weight:800;cursor:pointer;border:0;
+  padding:6px 9px;color:var(--dim);background:#120d2c;
+  box-shadow:0 0 0 2px #000,0 0 0 3px #332a63}
+.oblik .ob-b:hover{color:var(--text)}
+.oblik .ob-b.on{color:#0d0a1a;background:linear-gradient(180deg,#6ae0a8,#2a9a68);
+  box-shadow:0 0 0 2px #000,0 0 0 3px #1c6a48}
+.oblik .hint{margin-top:9px}
+
+/* ---------- вкладки по видам зверей ---------- */
+.vid-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 12px}
+.vid-tab{font:inherit;font-size:12px;font-weight:800;cursor:pointer;
+  padding:7px 10px;color:var(--dim);background:linear-gradient(180deg,#241c50,#171038);
+  box-shadow:0 0 0 2px #000,0 0 0 3px #3a2d78;border:0}
+.vid-tab .n{color:#6f63a8;font-size:11px;margin-left:3px}
+.vid-tab:hover{color:var(--text)}
+.vid-tab.on{color:#0d0a1a;background:linear-gradient(180deg,#ffd23a,#c9971a);
+  box-shadow:0 0 0 2px #000,0 0 0 3px #8a6a10}
+.vid-tab.on .n{color:#5a4408}
+
 /* ---------- работа над персонажем: выбор слева, кот справа ---------- */
 #scr-cats.active,#scr-dress.active,#scr-shop.active{
   justify-items:start;
@@ -1878,7 +1904,7 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
       <div class="panel panel-wide">
         <header class="panel-head">
           <button class="btn btn-back" data-act="back">← Назад</button>
-          <h2>🐱 КОТЫ-МАГИ</h2>
+          <h2>🐱 ЗВЕРИ-МАГИ</h2>
           <div class="head-right"><span class="chip chip-gold"><span>🪙</span><b class="c-coins">0</b></span></div>
         </header>
         <div class="panel-body" id="cat-list"></div>
@@ -2343,7 +2369,7 @@ body[data-device="phone"] .q-row .prize{font-size:11px}
   <div id="fatal" class="hidden"></div>
 </div>
 
-<script>window.KM=window.KM||{};KM.ВЕРСИЯ=200;</script><script>
+<script>window.KM=window.KM||{};KM.ВЕРСИЯ=202;</script><script>
 /* Адреса вшиты при сборке — игра найдёт сервер сама. */
 window.KM = window.KM || {};
 KM.SERVER_LIST = [];
@@ -6446,6 +6472,14 @@ void main(){
    *   neck: collar|scarf|bell|chain|none
    *   back: none|pack|book|sword
    *   mane: false|true       — пышный воротник
+   *
+   *   Ниже — то, что делает из кота другого зверя. По умолчанию всё
+   *   кошачье, поэтому старые персонажи остаются прежними до кубика.
+   *   snout: cat|dog|bear|monkey|beak|trunk|blunt   — морда
+   *   whisk: true|false      — усы (у собак и птиц их нет)
+   *   paws:  normal|flipper|hand   — лапы, ласты или цепкие ручки
+   *   mask:  none|panda|bandit|specs — тёмные пятна вокруг глаз
+   *   earDark: true          — уши красятся отдельным цветом (панда)
    * }
    */
   function buildCat(cfg) {
@@ -6464,13 +6498,30 @@ void main(){
     const wings = cfg.wings || 'none';
     const neck = cfg.neck === undefined ? 'collar' : cfg.neck;
     const back = cfg.back || 'none';
+    const snout = cfg.snout || 'cat';
+    const paws = cfg.paws || 'normal';
+    // узор шкуры: полосы тигра, пятна леопарда, розетки ягуара
+    const узор = cfg.узор || 'none';
+    // осанка: птица стоит столбиком на двух ногах, остальные — на четырёх
+    const прямая = cfg.осанка === 'прямая';
+    const mask = cfg.mask || 'none';
+    // Усы есть у котов, тюленей и мышей; у собак, медведей и птиц —
+    // нет. Если вид не задан, ведём себя как раньше: усы на месте.
+    const whisk = cfg.whisk === undefined
+      ? (snout === 'cat' || snout === 'blunt')
+      : !!cfg.whisk;
 
     const P = [];
     const add = (o) => { P.push(o); return o; };
 
     const legLen = 0.24 * L;
     const hipY = 0.40 * L;
-    const bodyW = 0.46 * W, bodyH = 0.34 * W, bodyL = 0.50 * B;
+    // У птицы корпус стоит стоймя: он выше, чем длинный. У всех
+    // остальных наоборот — тело вытянуто вперёд, как у зверя на
+    // четырёх лапах.
+    const bodyW = 0.46 * W;
+    const bodyH = прямая ? 0.52 * W : 0.34 * W;
+    const bodyL = прямая ? 0.34 * B : 0.50 * B;
 
     // ---------- корпус ----------
     add({ name: 'body', pivot: [0, hipY, 0], size: [bodyW, bodyH, bodyL], ck: 'fur' });
@@ -6480,8 +6531,49 @@ void main(){
     if (cfg.mane) {
       add({ name: 'mane', parent: 'body', pivot: [0, 0.10, bodyL * 0.46], size: [bodyW * 1.5, bodyH * 1.6, 0.2], ck: 'fur2' });
     }
-    add({ name: 'stripeA', parent: 'body', pivot: [0, bodyH * 0.51, 0.08], size: [bodyW * 0.65, 0.03, 0.08], ck: 'fur2' });
-    add({ name: 'stripeB', parent: 'body', pivot: [0, bodyH * 0.51, -0.08], size: [bodyW * 0.52, 0.03, 0.08], ck: 'fur2' });
+    if (узор === 'none') {
+      add({ name: 'stripeA', parent: 'body', pivot: [0, bodyH * 0.51, 0.08], size: [bodyW * 0.65, 0.03, 0.08], ck: 'fur2' });
+      add({ name: 'stripeB', parent: 'body', pivot: [0, bodyH * 0.51, -0.08], size: [bodyW * 0.52, 0.03, 0.08], ck: 'fur2' });
+    } else if (узор === 'stripes') {
+      // Тигриные полосы. Короткие: если тянуть их во всю высоту бока,
+      // рыжего между ними почти не остаётся и зверь выходит чёрным.
+      for (let i = 0; i < 5; i++) {
+        const z = (i / 4 - 0.5) * bodyL * 0.82;
+        const ш = 0.055 + (i % 2) * 0.02;
+        add({ name: 'patT' + i, parent: 'body', pivot: [0, bodyH * 0.50, z], size: [bodyW * 0.72, 0.035, ш], ck: 'pattern' });
+        for (const [м, sx] of [['L', -1], ['R', 1]]) {
+          add({
+            name: 'pat' + м + i, parent: 'body',
+            pivot: [sx * bodyW * 0.505, bodyH * 0.14, z],
+            size: [0.035, bodyH * 0.52, ш], ck: 'pattern'
+          });
+        }
+      }
+    } else if (узор === 'spots' || узор === 'rosettes') {
+      // Пятна леопарда и розетки ягуара. Кладём их на бока и спину
+      // россыпью — по одному ряду сверху и по два на каждом боку.
+      const розетка = узор === 'rosettes';
+      let н = 0;
+      const пятно = (x, y, z, r) => {
+        const им = 'pat' + (н++);
+        add({ name: им, parent: 'body', pivot: [x, y, z], size: [r, r, r], ck: 'pattern' });
+        // у ягуара середина пятна светлая — потому это и розетка
+        if (розетка) {
+          add({ name: им + 'c', parent: 'body', pivot: [x, y, z], size: [r * 0.5, r * 1.04, r * 0.5], ck: 'fur' });
+        }
+      };
+      // Нижний ряд сдвинут на полшага, и размеры чуть разные — иначе
+      // пятна выстраиваются ровной решёткой и похожи на окна.
+      const шаг = bodyL * 0.78 / 4;
+      for (let i = 0; i < 5; i++) {
+        const z = (i / 4 - 0.5) * bodyL * 0.78;
+        пятно(0, bodyH * 0.505, z + (i % 2 ? 0.05 : -0.02), 0.10 + (i % 2) * 0.02);
+        for (const sx of [-1, 1]) {
+          пятно(sx * bodyW * 0.505, bodyH * 0.28, z, 0.11 - (i % 2) * 0.015);
+          if (i < 4) пятно(sx * bodyW * 0.505, -bodyH * 0.02, z + шаг * 0.5, 0.085 + (i % 2) * 0.02);
+        }
+      }
+    }
 
     // ---------- голова ----------
     const hw = 0.58 * H, hh = 0.48 * H, hd = 0.46 * H;
@@ -6493,10 +6585,113 @@ void main(){
     add({ name: 'cheekL', parent: 'head', pivot: [-hw * 0.53, hy - hh * 0.1, 0.03], size: [0.09, hh * 0.5, hd * 0.65], ck: 'fur2' });
     add({ name: 'cheekR', parent: 'head', pivot: [hw * 0.53, hy - hh * 0.1, 0.03], size: [0.09, hh * 0.5, hd * 0.65], ck: 'fur2' });
     add({ name: 'blaze', parent: 'head', pivot: [0, hy + hh * 0.42, front * 0.72], size: [0.17, 0.11, 0.21], ck: 'fur2' });
-    add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.25, front], size: [hw * 0.48, hh * 0.37, 0.12], ck: 'fur2' });
-    add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.14, front + 0.07], size: [0.11, 0.08, 0.06], ck: 'nose' });
-    add({ name: 'mouthL', parent: 'head', pivot: [-0.052, hy - hh * 0.32, front + 0.055], size: [0.07, 0.032, 0.035], ck: 'nose' });
-    add({ name: 'mouthR', parent: 'head', pivot: [0.052, hy - hh * 0.32, front + 0.055], size: [0.07, 0.032, 0.035], ck: 'nose' });
+    // ---------- морда ----------
+    // Именно морда отличает кота от собаки сильнее всего: у кота она
+    // короткая и приплюснутая, у собаки вытянута вперёд, у медведя
+    // круглая, у птицы вместо неё клюв, а у слонёнка — хобот.
+    const рот = (y, z, ш) => {
+      add({ name: 'mouthL', parent: 'head', pivot: [-ш, y, z], size: [0.07, 0.032, 0.035], ck: 'nose' });
+      add({ name: 'mouthR', parent: 'head', pivot: [ш, y, z], size: [0.07, 0.032, 0.035], ck: 'nose' });
+    };
+    switch (snout) {
+      case 'dog':
+        // вытянутая морда: она заметно выдаётся вперёд
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.22, front + 0.10], size: [hw * 0.42, hh * 0.36, 0.30], ck: 'fur2' });
+        add({ name: 'muzzleTop', parent: 'head', pivot: [0, hy - hh * 0.02, front + 0.06], size: [hw * 0.30, 0.10, 0.22], ck: 'fur' });
+        add({ name: 'jaw', parent: 'head', pivot: [0, hy - hh * 0.40, front + 0.08], size: [hw * 0.32, 0.08, 0.24], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.10, front + 0.25], size: [0.15, 0.11, 0.08], ck: 'nose' });
+        рот(hy - hh * 0.34, front + 0.20, 0.055);
+        break;
+      case 'bear':
+        // короткая, но широкая и круглая — и нос крупный
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.26, front + 0.04], size: [hw * 0.56, hh * 0.40, 0.18], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.12, front + 0.13], size: [0.18, 0.13, 0.08], ck: 'nose' });
+        рот(hy - hh * 0.38, front + 0.10, 0.06);
+        break;
+      case 'monkey':
+        // плоское лицо со светлым пятном — обезьяну узнают по нему
+        add({ name: 'face', parent: 'head', pivot: [0, hy - hh * 0.06, front + 0.01], size: [hw * 0.72, hh * 0.72, 0.06], ck: 'fur2' });
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.30, front + 0.04], size: [hw * 0.40, hh * 0.28, 0.10], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.20, front + 0.08], size: [0.09, 0.06, 0.05], ck: 'nose' });
+        рот(hy - hh * 0.40, front + 0.07, 0.07);
+        break;
+      case 'beak': {
+        // клюв: два клина, верхний длиннее нижнего
+        const bz = front + 0.02;
+        add({ name: 'beakTop', parent: 'head', pivot: [0, hy - hh * 0.10, bz + 0.10], size: [0.15, 0.10, 0.24], ck: 'beak' });
+        add({ name: 'beakTip', parent: 'head', pivot: [0, hy - hh * 0.14, bz + 0.24], size: [0.09, 0.06, 0.10], ck: 'beak' });
+        add({ name: 'beakLow', parent: 'head', pivot: [0, hy - hh * 0.24, bz + 0.08], size: [0.13, 0.06, 0.16], ck: 'beak' });
+        break;
+      }
+      case 'trunk': {
+        // хобот — цепочка кубиков вниз и чуть вперёд, слегка качается
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.22, front + 0.02], size: [hw * 0.46, hh * 0.34, 0.12], ck: 'fur2' });
+        // Хобот держим впереди груди, а не вплотную к ней: серый хобот
+        // на сером теле иначе просто теряется. И книзу он светлеет —
+        // так видно, что это отдельная часть, а не складка на шкуре.
+        let рд = 'head';
+        let тчк = [0, hy - hh * 0.30, front + 0.10];
+        for (let i = 0; i < 5; i++) {
+          const нм = 'trunk' + (i + 1);
+          add({ name: нм, parent: рд, pivot: тчк });
+          add({
+            name: нм + 'b', parent: нм, pivot: [0, -0.09, 0.02],
+            size: [0.18 - i * 0.026, 0.18, 0.18 - i * 0.026],
+            ck: i >= 2 ? 'fur2' : 'fur',   // книзу светлее — хобот видно на фоне груди
+            wob: 0.012 * (i + 1)
+          });
+          рд = нм;
+          тчк = [0, -0.17, 0.03];
+        }
+        break;
+      }
+      case 'rabbit':
+        // Зайца выдают два передних зуба и раздвоенная губа.
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.24, front + 0.01], size: [hw * 0.40, hh * 0.32, 0.11], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.10, front + 0.06], size: [0.10, 0.07, 0.06], ck: 'nose' });
+        add({ name: 'lip', parent: 'head', pivot: [0, hy - hh * 0.26, front + 0.07], size: [0.03, 0.09, 0.04], ck: 'nose' });
+        add({ name: 'toothL', parent: 'head', pivot: [-0.045, hy - hh * 0.42, front + 0.06], size: [0.07, 0.11, 0.04], ck: 'horn' });
+        add({ name: 'toothR', parent: 'head', pivot: [0.045, hy - hh * 0.42, front + 0.06], size: [0.07, 0.11, 0.04], ck: 'horn' });
+        break;
+      case 'blunt':
+        // тюлений нос: широкий, тупой, приподнятый
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.28, front + 0.02], size: [hw * 0.60, hh * 0.30, 0.13], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.16, front + 0.09], size: [0.13, 0.09, 0.06], ck: 'nose' });
+        рот(hy - hh * 0.40, front + 0.07, 0.06);
+        break;
+      default:
+        add({ name: 'muzzle', parent: 'head', pivot: [0, hy - hh * 0.25, front], size: [hw * 0.48, hh * 0.37, 0.12], ck: 'fur2' });
+        add({ name: 'nose', parent: 'head', pivot: [0, hy - hh * 0.14, front + 0.07], size: [0.11, 0.08, 0.06], ck: 'nose' });
+        рот(hy - hh * 0.32, front + 0.055, 0.052);
+    }
+
+    // ---------- бивни ----------
+    // Моржа без бивней не бывает, слонёнка тоже. Признак общий, чтобы
+    // не привязывать их к одной какой-то морде.
+    if (cfg.bivni || snout === 'trunk') {
+      // Бивни ставим шире морды и впереди неё. Раньше они оказывались
+      // внутри неё — были в модели, а увидеть их было нельзя.
+      const bl = snout === 'trunk' ? 0.18 : 0.26;
+      const bx = hw * 0.34, by = hy - hh * 0.52, bz = front + 0.10;
+      add({ name: 'tusk1', parent: 'head', pivot: [-bx, by, bz], size: [0.07, bl, 0.07], ck: 'horn' });
+      add({ name: 'tusk2', parent: 'head', pivot: [bx, by, bz], size: [0.07, bl, 0.07], ck: 'horn' });
+    }
+
+    // ---------- пятна вокруг глаз ----------
+    // Панду без чёрных кругов не узнать, а енота — без маски.
+    if (mask !== 'none') {
+      const mx = hw * 0.25, my = hy + hh * 0.12, mz = front + 0.005;
+      const форма = {
+        panda: [0.26, 0.28, 0.04],
+        bandit: [0.30, 0.16, 0.04],
+        specs: [0.24, 0.24, 0.04]
+      }[mask] || [0.26, 0.26, 0.04];
+      add({ name: 'maskL', parent: 'head', pivot: [-mx, my, mz], size: форма, ck: 'patch' });
+      add({ name: 'maskR', parent: 'head', pivot: [mx, my, mz], size: форма, ck: 'patch' });
+      if (mask === 'bandit') {
+        add({ name: 'maskMid', parent: 'head', pivot: [0, my, mz], size: [0.2, 0.11, 0.04], ck: 'patch' });
+      }
+    }
 
     // ---------- глаза ----------
     const ex = hw * 0.25, ey = hy + hh * 0.12, ez = front + 0.02;
@@ -6521,6 +6716,14 @@ void main(){
         }
       };
       mk('eyeL', -1); mk('eyeR', 1);
+      // Ресницы — единственное, чем отличается облик «девочка».
+      // Всё остальное игрок выбирает сам: и цвет, и наряд, и шляпу.
+      if (cfg.ресницы) {
+        for (const [n, sx] of [['eyeL', -1], ['eyeR', 1]]) {
+          add({ name: n + 'r1', parent: n, pivot: [sx * 0.02, eyeShape[1] * 0.62, 0.01], size: [eyeShape[0] * 0.9, 0.028, 0.05], ck: 'nose' });
+          add({ name: n + 'r2', parent: n, pivot: [sx * (eyeShape[0] * 0.52), eyeShape[1] * 0.52, 0.01], size: [0.05, 0.05, 0.045], ck: 'nose' });
+        }
+      }
     }
 
     // ---------- уши ----------
@@ -6532,13 +6735,48 @@ void main(){
       tuft: { w: 0.18, h: 0.32, d: 0.10, x: 0.36, tilt: -0.15 },
       long: { w: 0.15, h: 0.52, d: 0.10, x: 0.32, tilt: 0.05 },
       horn: { w: 0.13, h: 0.30, d: 0.13, x: 0.36, tilt: -0.3 },
-      fin: { w: 0.10, h: 0.26, d: 0.30, x: 0.40, tilt: 0.2 }
+      fin: { w: 0.10, h: 0.26, d: 0.30, x: 0.40, tilt: 0.2 },
+      // круглые уши-блины: панда, медведь, мышь, обезьяна
+      panda: { w: 0.30, h: 0.26, d: 0.16, x: 0.44, tilt: 0 },
+      // маленькие, почти незаметные: тюлень, птица
+      tiny: { w: 0.11, h: 0.09, d: 0.09, x: 0.38, tilt: 0 },
+      // огромные лопухи слонёнка — вбок, а не вверх
+      wide: { w: 0.44, h: 0.38, d: 0.08, x: 0.62, tilt: 0 }
     }[ear];
-    if (earDef) {
+
+    // Висячие уши строим отдельно: наклонить деталь на этапе сборки
+    // нельзя, поэтому «свисание» набираем кубиками вниз по голове.
+    if (ear === 'wide') {
+      // Слоновьи лопухи растут сбоку головы и свисают вниз. Общий
+      // способ ставит уши макушкой вверх — получались мышиные кругляши.
+      const mk = (n, sx) => {
+        add({ name: n, parent: 'head', pivot: [sx * hw * 0.52, hy + hh * 0.10, -0.02] });
+        add({ name: n + 'o', parent: n, pivot: [sx * 0.16, -0.02, -0.03], size: [0.30, 0.46, 0.09], ck: 'fur', wob: 0.014 });
+        add({ name: n + 'i', parent: n, pivot: [sx * 0.14, -0.02, 0.02], size: [0.22, 0.36, 0.05], ck: 'ear' });
+      };
+      mk('earL', -1); mk('earR', 1);
+    } else if (ear === 'flop') {
+      const mk = (n, sx) => {
+        add({ name: n, parent: 'head', pivot: [sx * hw * 0.46, earY - 0.02, earZ] });
+        for (let i = 0; i < 3; i++) {
+          add({
+            name: n + 'f' + i, parent: n,
+            pivot: [sx * (0.02 + i * 0.022), -0.07 - i * 0.13, -i * 0.01],
+            size: [0.15 - i * 0.012, 0.16, 0.12 - i * 0.01],
+            ck: i === 2 ? 'fur2' : 'fur', wob: 0.01 * (i + 1)
+          });
+        }
+      };
+      mk('earL', -1); mk('earR', 1);
+    } else if (earDef) {
       const mk = (n, sx) => {
         add({ name: n, parent: 'head', pivot: [sx * hw * earDef.x, earY, earZ] });
-        add({ name: n + 'o', parent: n, pivot: [0, earDef.h * 0.5, 0], size: [earDef.w, earDef.h, earDef.d], ck: ear === 'horn' ? 'horn' : 'fur' });
-        if (ear !== 'horn' && ear !== 'fin') {
+        add({
+          name: n + 'o', parent: n, pivot: [0, earDef.h * 0.5, 0],
+          size: [earDef.w, earDef.h, earDef.d],
+          ck: ear === 'horn' ? 'horn' : (cfg.earDark ? 'earOut' : 'fur')
+        });
+        if (ear !== 'horn' && ear !== 'fin' && ear !== 'tiny') {
           add({ name: n + 'i', parent: n, pivot: [0, earDef.h * 0.42, 0.02], size: [earDef.w * 0.55, earDef.h * 0.62, earDef.d * 0.5], ck: 'ear' });
         }
         if (ear === 'tuft') {
@@ -6551,12 +6789,29 @@ void main(){
       mk('earL', -1); mk('earR', 1);
     }
 
+    // ---------- узор на голове ----------
+    // Ставим после ушей: деталь можно прицепить только к тому, что
+    // уже построено, а голова появляется ниже корпуса.
+    if (узор === 'stripes') {
+      add({ name: 'patF', parent: 'head', pivot: [0, hy + hh * 0.48, -0.02], size: [hw * 0.18, 0.03, hd * 0.5], ck: 'pattern' });
+      add({ name: 'patF2', parent: 'head', pivot: [-hw * 0.30, hy + hh * 0.40, -0.06], size: [0.05, 0.03, hd * 0.34], ck: 'pattern' });
+      add({ name: 'patF3', parent: 'head', pivot: [hw * 0.30, hy + hh * 0.40, -0.06], size: [0.05, 0.03, hd * 0.34], ck: 'pattern' });
+    } else if (узор === 'spots' || узор === 'rosettes') {
+      add({ name: 'patF1', parent: 'head', pivot: [-hw * 0.32, hy + hh * 0.36, -0.04], size: [0.08, 0.07, 0.08], ck: 'pattern' });
+      add({ name: 'patF2', parent: 'head', pivot: [hw * 0.32, hy + hh * 0.36, -0.04], size: [0.08, 0.07, 0.08], ck: 'pattern' });
+      add({ name: 'patF3', parent: 'head', pivot: [0, hy + hh * 0.50, -0.10], size: [0.08, 0.06, 0.08], ck: 'pattern' });
+    }
+
     // ---------- усы ----------
-    const wz = front + 0.01;
-    add({ name: 'whL1', parent: 'head', pivot: [-hw * 0.47, hy - hh * 0.18, wz], size: [0.22, 0.02, 0.02], ck: 'whisker', ao: 0 });
-    add({ name: 'whL2', parent: 'head', pivot: [-hw * 0.45, hy - hh * 0.30, wz], size: [0.20, 0.02, 0.02], ck: 'whisker', ao: 0 });
-    add({ name: 'whR1', parent: 'head', pivot: [hw * 0.47, hy - hh * 0.18, wz], size: [0.22, 0.02, 0.02], ck: 'whisker', ao: 0 });
-    add({ name: 'whR2', parent: 'head', pivot: [hw * 0.45, hy - hh * 0.30, wz], size: [0.20, 0.02, 0.02], ck: 'whisker', ao: 0 });
+    // У собаки, медведя и птицы усов нет — с ними они выглядят котами,
+    // как их ни раскрашивай.
+    if (whisk) {
+      const wz = front + 0.01;
+      add({ name: 'whL1', parent: 'head', pivot: [-hw * 0.47, hy - hh * 0.18, wz], size: [0.22, 0.02, 0.02], ck: 'whisker', ao: 0 });
+      add({ name: 'whL2', parent: 'head', pivot: [-hw * 0.45, hy - hh * 0.30, wz], size: [0.20, 0.02, 0.02], ck: 'whisker', ao: 0 });
+      add({ name: 'whR1', parent: 'head', pivot: [hw * 0.47, hy - hh * 0.18, wz], size: [0.22, 0.02, 0.02], ck: 'whisker', ao: 0 });
+      add({ name: 'whR2', parent: 'head', pivot: [hw * 0.45, hy - hh * 0.30, wz], size: [0.20, 0.02, 0.02], ck: 'whisker', ao: 0 });
+    }
 
     // ---------- головной убор ----------
     // если надет аксессуар на голову, базовая шляпа снимается
@@ -6676,13 +6931,62 @@ void main(){
     // ---------- лапы ----------
     const leg = (n, x, z) => {
       add({ name: n, parent: 'body', pivot: [x, -bodyH * 0.35, z] });
+      if (paws === 'flipper') {
+        // тюленю лапы ни к чему: короткий обрубок и широкий плоский ласт
+        add({ name: n + 'u', parent: n, pivot: [0, -legLen * 0.34, 0], size: [0.17 * W, legLen * 0.55, 0.15 * W], ck: 'fur' });
+        add({ name: n + 'p', parent: n, pivot: [0, -legLen * 0.66, 0.06], size: [0.24 * W, 0.06, 0.30], ck: 'fur2' });
+        return;
+      }
       add({ name: n + 'u', parent: n, pivot: [0, -legLen * 0.46, 0], size: [0.15 * W, legLen, 0.15 * W], ck: 'fur' });
       add({ name: n + 'p', parent: n, pivot: [0, -legLen * 1.02, 0.02], size: [0.175 * W, 0.09, 0.20], ck: 'fur2' });
+      if (paws === 'hand') {
+        // обезьяньи пальцы: три коротких кубика вперёд
+        for (let i = -1; i <= 1; i++) {
+          add({
+            name: n + 'f' + (i + 1), parent: n,
+            pivot: [i * 0.055 * W, -legLen * 1.02, 0.14],
+            size: [0.045, 0.05, 0.09], ck: 'fur2'
+          });
+        }
+      }
     };
-    leg('legFL', -bodyW * 0.32, bodyL * 0.32);
-    leg('legFR', bodyW * 0.32, bodyL * 0.32);
-    leg('legBL', -bodyW * 0.32, -bodyL * 0.34);
-    leg('legBR', bodyW * 0.32, -bodyL * 0.34);
+    if (прямая) {
+      // Птица стоит на двух ногах. Раньше все звери строились
+      // одинаково, и у воробья было четыре лапы — что и видно было.
+      const лапка = (n, x) => {
+        add({ name: n, parent: 'body', pivot: [x, -bodyH * 0.42, 0.02] });
+        add({ name: n + 'u', parent: n, pivot: [0, -legLen * 0.5, 0], size: [0.09, legLen * 1.1, 0.09], ck: 'beak' });
+        add({ name: n + 'p', parent: n, pivot: [0, -legLen * 1.1, 0.06], size: [0.13, 0.05, 0.20], ck: 'beak' });
+        // три пальца врастопырку — птичья лапа узнаётся по ним
+        for (let i = -1; i <= 1; i++) {
+          add({
+            name: n + 't' + (i + 1), parent: n,
+            pivot: [i * 0.05, -legLen * 1.1, 0.16],
+            size: [0.04, 0.04, 0.10], ck: 'beak'
+          });
+        }
+      };
+      лапка('legBL', -bodyW * 0.24);
+      лапка('legBR', bodyW * 0.24);
+    } else if (cfg.прыгун) {
+      // Заяц: передние лапки коротенькие, задние — длинные и мощные,
+      // сложенные под собой. Из-за них он и прыгает, а не бегает.
+      leg('legFL', -bodyW * 0.30, bodyL * 0.34);
+      leg('legFR', bodyW * 0.30, bodyL * 0.34);
+      const задняя = (n, x) => {
+        add({ name: n, parent: 'body', pivot: [x, -bodyH * 0.30, -bodyL * 0.30] });
+        add({ name: n + 'b', parent: n, pivot: [0, -legLen * 0.22, -0.05], size: [0.20 * W, legLen * 1.15, 0.26], ck: 'fur' });
+        add({ name: n + 'u', parent: n, pivot: [0, -legLen * 0.95, 0.03], size: [0.15 * W, legLen * 0.7, 0.13], ck: 'fur' });
+        add({ name: n + 'p', parent: n, pivot: [0, -legLen * 1.30, 0.10], size: [0.17 * W, 0.09, 0.30], ck: 'fur2' });
+      };
+      задняя('legBL', -bodyW * 0.30);
+      задняя('legBR', bodyW * 0.30);
+    } else {
+      leg('legFL', -bodyW * 0.32, bodyL * 0.32);
+      leg('legFR', bodyW * 0.32, bodyL * 0.32);
+      leg('legBL', -bodyW * 0.32, -bodyL * 0.34);
+      leg('legBR', bodyW * 0.32, -bodyL * 0.34);
+    }
 
     // ---------- хвост ----------
     if (tail !== 'none') {
@@ -6692,7 +6996,19 @@ void main(){
         thin: { n: 5, w: 0.08, len: 0.19, taper: 0.92, tipCk: 'fur' },
         stub: { n: 2, w: 0.16, len: 0.14, taper: 0.8, tipCk: 'fur2' },
         wisp: { n: 5, w: 0.15, len: 0.20, taper: 0.82, tipCk: 'gem', alpha: 0.75 },
-        fork: { n: 3, w: 0.11, len: 0.22, taper: 0.9, tipCk: 'fur2', fork: true }
+        fork: { n: 3, w: 0.11, len: 0.22, taper: 0.9, tipCk: 'fur2', fork: true },
+        // лисий и беличий: толстый, пушистый, к концу чуть светлее
+        bushy: { n: 4, w: 0.28, len: 0.20, taper: 1.0, tipCk: 'fur2', вверх: 0.09 },
+        // собачий бублик: короткий и задранный
+        curl: { n: 3, w: 0.15, len: 0.15, taper: 0.88, tipCk: 'fur2', вверх: 0.13 },
+        // тюлений: плоский, лежит сзади
+        flat: { n: 2, w: 0.30, len: 0.18, taper: 0.85, tipCk: 'fur2', плоский: true },
+        // птичий веер из перьев
+        plume: { n: 3, w: 0.22, len: 0.17, taper: 0.9, tipCk: 'wing', веер: true },
+        // тонкий шнурок с кисточкой: обезьяна, слонёнок
+        rope: { n: 5, w: 0.07, len: 0.19, taper: 0.95, tipCk: 'fur2', кисть: true },
+        // заячий помпон: один короткий пушистый шарик
+        puff: { n: 1, w: 0.22, len: 0.16, taper: 1, tipCk: 'fur2', вверх: 0.06 }
       }[tail] || { n: 4, w: 0.13, len: 0.21, taper: 0.9, tipCk: 'fur2' };
 
       let parent = 'body';
@@ -6704,15 +7020,32 @@ void main(){
         const last = i === tcfg.n - 1;
         add({
           name: nm + 'b', parent: nm, pivot: [0, 0.02, -tcfg.len * 0.5],
-          size: [w, w, tcfg.len], ck: last ? tcfg.tipCk : 'fur',
+          size: [w, tcfg.плоский ? w * 0.42 : w, tcfg.len],
+          ck: last ? tcfg.tipCk : 'fur',
           alpha: tcfg.alpha || 1, emis: (last && tail === 'wisp') ? 0.7 : 0
         });
         if (tcfg.fork && last) {
           add({ name: nm + 'f1', parent: nm, pivot: [w * 0.9, 0.02, -tcfg.len * 0.9], size: [w, w, tcfg.len * 0.8], ck: tcfg.tipCk });
           add({ name: nm + 'f2', parent: nm, pivot: [-w * 0.9, 0.02, -tcfg.len * 0.9], size: [w, w, tcfg.len * 0.8], ck: tcfg.tipCk });
         }
+        // кисточка на конце шнурка
+        if (tcfg.кисть && last) {
+          add({ name: nm + 'k', parent: nm, pivot: [0, 0.02, -tcfg.len * 1.0], size: [w * 2.2, w * 2.2, 0.11], ck: tcfg.tipCk });
+        }
+        // птичий веер: перья расходятся в стороны
+        if (tcfg.веер && last) {
+          for (let f = -2; f <= 2; f++) {
+            add({
+              name: nm + 'v' + (f + 2), parent: nm,
+              pivot: [f * 0.075, 0.02 + Math.abs(f) * 0.02, -tcfg.len * 0.95 - Math.abs(f) * 0.03],
+              size: [0.07, 0.05, 0.26 - Math.abs(f) * 0.04], ck: 'wing'
+            });
+          }
+        }
         parent = nm;
-        pv = [0, 0.03, -tcfg.len * 0.94];
+        // «вверх» задирает хвост: у лисы он держится трубой, у собаки
+        // сворачивается бубликом над спиной
+        pv = [0, 0.03 + (tcfg.вверх || 0), -tcfg.len * 0.94];
       }
     }
 
@@ -6770,6 +7103,83 @@ void main(){
         add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.13, 0.02], size: [0.48 * H, 0.10, 0.46 * H], ck: 'accH1' });
         add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.23, 0.02], size: [0.15, 0.14, 0.15], ck: 'accH2' });
         break;
+      case 'horns':
+        // Маленькие рожки. Раньше эта вещь ссылалась на форму рогов
+        // оленя, а среди аксессуаров такой формы нет — и «Рожки
+        // Бесёнка» покупались, но на голове не появлялись вовсе.
+        for (const sx of [-1, 1]) {
+          const n = sx < 0 ? 'L' : 'R';
+          add({ name: 'aHh1' + n, parent: 'head', pivot: [sx * 0.22 * H, topY + 0.06, 0.04], size: [0.11, 0.14, 0.11], ck: 'accH1' });
+          add({ name: 'aHh2' + n, parent: 'head', pivot: [sx * 0.26 * H, topY + 0.17, 0.02], size: [0.08, 0.12, 0.08], ck: 'accH1' });
+          add({ name: 'aHh3' + n, parent: 'head', pivot: [sx * 0.29 * H, topY + 0.26, 0.01], size: [0.05, 0.08, 0.05], ck: 'accH2' });
+        }
+        break;
+      case 'flowers':
+        // венок: шесть цветков по кругу
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * 6.283;
+          const cx = Math.cos(a) * 0.24 * H, cz = 0.04 + Math.sin(a) * 0.22 * H;
+          add({ name: 'aHf' + i, parent: 'head', pivot: [cx, topY + 0.04, cz], size: [0.13, 0.09, 0.13], ck: i % 2 ? 'accH1' : 'accH2' });
+          add({ name: 'aHfc' + i, parent: 'head', pivot: [cx, topY + 0.08, cz], size: [0.06, 0.06, 0.06], ck: i % 2 ? 'accH2' : 'accH1' });
+        }
+        break;
+      case 'pirate':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.06, 0.02], size: [0.78 * H, 0.09, 0.52 * H], ck: 'accH1' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.16, 0.02], size: [0.44 * H, 0.16, 0.40 * H], ck: 'accH1' });
+        add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.16, 0.24 * H], size: [0.16, 0.13, 0.05], ck: 'accH2' });
+        add({ name: 'aH4', parent: 'head', pivot: [-0.06, topY + 0.11, 0.25 * H], size: [0.05, 0.05, 0.04], ck: 'accH2' });
+        add({ name: 'aH5', parent: 'head', pivot: [0.06, topY + 0.11, 0.25 * H], size: [0.05, 0.05, 0.04], ck: 'accH2' });
+        break;
+      case 'chef':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.06, 0.02], size: [0.52 * H, 0.12, 0.48 * H], ck: 'accH2' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.24, 0.02], size: [0.60 * H, 0.26, 0.56 * H], ck: 'accH1' });
+        add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.40, 0.02], size: [0.48 * H, 0.10, 0.44 * H], ck: 'accH1' });
+        break;
+      case 'headphones':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.06, -0.02], size: [hw * 1.06, 0.07, 0.10], ck: 'accH1' });
+        for (const sx of [-1, 1]) {
+          add({ name: 'aHh' + (sx < 0 ? 'L' : 'R'), parent: 'head', pivot: [sx * hw * 0.54, hy + hh * 0.12, -0.01], size: [0.10, 0.26, 0.24], ck: 'accH1' });
+          add({ name: 'aHp' + (sx < 0 ? 'L' : 'R'), parent: 'head', pivot: [sx * hw * 0.60, hy + hh * 0.12, -0.01], size: [0.05, 0.18, 0.17], ck: 'accH2', emis: 0.4 });
+        }
+        break;
+      case 'sunhat':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.03, 0.02], size: [0.96 * H, 0.06, 0.90 * H], ck: 'accH1' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.13, 0.02], size: [0.52 * H, 0.18, 0.48 * H], ck: 'accH1' });
+        add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.09, 0.02], size: [0.54 * H, 0.06, 0.50 * H], ck: 'accH2' });
+        break;
+      case 'graduate':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.08, 0.02], size: [0.48 * H, 0.14, 0.44 * H], ck: 'accH1' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.17, 0.02], size: [0.86 * H, 0.05, 0.86 * H], ck: 'accH1' });
+        add({ name: 'aH3', parent: 'head', pivot: [0.30 * H, topY + 0.10, 0.02], size: [0.05, 0.20, 0.05], ck: 'accH2', wob: 0.03 });
+        add({ name: 'aH4', parent: 'head', pivot: [0.30 * H, topY - 0.02, 0.02], size: [0.09, 0.09, 0.09], ck: 'accH2', wob: 0.04 });
+        break;
+      case 'unicorn':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.10, 0.16], size: [0.13, 0.20, 0.13], ck: 'accH1', emis: 0.3 });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.26, 0.16], size: [0.09, 0.16, 0.09], ck: 'accH1', emis: 0.5 });
+        add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.38, 0.16], size: [0.05, 0.10, 0.05], ck: 'accH2', emis: 0.9, ao: 0 });
+        break;
+      case 'earmuffs':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.07, -0.03], size: [hw * 0.94, 0.08, 0.11], ck: 'accH2' });
+        for (const sx of [-1, 1]) {
+          add({ name: 'aHm' + (sx < 0 ? 'L' : 'R'), parent: 'head', pivot: [sx * hw * 0.52, hy + hh * 0.20, -0.01], size: [0.14, 0.24, 0.24], ck: 'accH1' });
+        }
+        break;
+      case 'viking':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.06, 0.02], size: [0.60 * H, 0.20, 0.56 * H], ck: 'accH1' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.02, 0.02], size: [0.64 * H, 0.06, 0.60 * H], ck: 'accH2' });
+        for (const sx of [-1, 1]) {
+          const n = sx < 0 ? 'L' : 'R';
+          add({ name: 'aHr1' + n, parent: 'head', pivot: [sx * 0.32 * H, topY + 0.12, 0.02], size: [0.16, 0.09, 0.09], ck: 'accH2' });
+          add({ name: 'aHr2' + n, parent: 'head', pivot: [sx * 0.42 * H, topY + 0.22, 0.02], size: [0.09, 0.16, 0.09], ck: 'accH2' });
+          add({ name: 'aHr3' + n, parent: 'head', pivot: [sx * 0.42 * H, topY + 0.34, 0.02], size: [0.06, 0.08, 0.06], ck: 'accH2' });
+        }
+        break;
+      case 'flowerpot':
+        add({ name: 'aH1', parent: 'head', pivot: [0, topY + 0.10, 0.02], size: [0.42 * H, 0.24, 0.40 * H], ck: 'accH1' });
+        add({ name: 'aH2', parent: 'head', pivot: [0, topY + 0.23, 0.02], size: [0.48 * H, 0.06, 0.46 * H], ck: 'accH1' });
+        add({ name: 'aH3', parent: 'head', pivot: [0, topY + 0.34, 0.02], size: [0.06, 0.18, 0.06], ck: 'accH2' });
+        add({ name: 'aH4', parent: 'head', pivot: [0, topY + 0.46, 0.02], size: [0.20, 0.12, 0.20], ck: 'accH2' });
+        break;
     }
 
     // ---- морда ----
@@ -6793,6 +7203,36 @@ void main(){
         add({ name: 'aF1', parent: 'head', pivot: [ex, ey + 0.01, ez + 0.04], size: [0.20, 0.20, 0.03], ck: 'accF2', alpha: 0.45 });
         add({ name: 'aF2', parent: 'head', pivot: [ex, ey + 0.12, ez + 0.04], size: [0.04, 0.05, 0.03], ck: 'accF1' });
         break;
+      case 'mask':
+        add({ name: 'aF1', parent: 'head', pivot: [0, ey + 0.03, ez + 0.03], size: [hw * 1.0, 0.22, 0.05], ck: 'accF1' });
+        add({ name: 'aF2', parent: 'head', pivot: [-ex, ey + 0.02, ez + 0.055], size: [0.17, 0.14, 0.03], ck: 'accF2' });
+        add({ name: 'aF3', parent: 'head', pivot: [ex, ey + 0.02, ez + 0.055], size: [0.17, 0.14, 0.03], ck: 'accF2' });
+        add({ name: 'aF4', parent: 'head', pivot: [0, ey + 0.14, ez - 0.10], size: [hw * 1.02, 0.05, hd * 0.8], ck: 'accF1' });
+        break;
+      case 'snorkel':
+        add({ name: 'aF1', parent: 'head', pivot: [0, ey + 0.02, ez + 0.05], size: [hw * 0.92, 0.26, 0.07], ck: 'accF2', alpha: 0.5 });
+        add({ name: 'aF2', parent: 'head', pivot: [0, ey + 0.16, ez + 0.03], size: [hw * 0.96, 0.06, 0.07], ck: 'accF1' });
+        add({ name: 'aF3', parent: 'head', pivot: [hw * 0.5, ey + 0.16, ez - 0.02], size: [0.07, 0.34, 0.07], ck: 'accF1' });
+        break;
+      case 'bandage':
+        add({ name: 'aF1', parent: 'head', pivot: [-hw * 0.34, ey - 0.10, ez + 0.02], size: [0.20, 0.08, 0.03], ck: 'accF1' });
+        add({ name: 'aF2', parent: 'head', pivot: [-hw * 0.34, ey - 0.10, ez + 0.03], size: [0.08, 0.14, 0.02], ck: 'accF1' });
+        add({ name: 'aF3', parent: 'head', pivot: [-hw * 0.34, ey - 0.10, ez + 0.035], size: [0.07, 0.05, 0.02], ck: 'accF2' });
+        break;
+      case 'blush':
+        add({ name: 'aF1', parent: 'head', pivot: [-hw * 0.40, ey - 0.14, ez - 0.01], size: [0.17, 0.10, 0.04], ck: 'accF1' });
+        add({ name: 'aF2', parent: 'head', pivot: [hw * 0.40, ey - 0.14, ez - 0.01], size: [0.17, 0.10, 0.04], ck: 'accF1' });
+        break;
+      case 'mustache':
+        add({ name: 'aF1', parent: 'head', pivot: [0, hy - hh * 0.22, front + 0.05], size: [0.26, 0.06, 0.05], ck: 'accF1' });
+        add({ name: 'aF2', parent: 'head', pivot: [-0.15, hy - hh * 0.17, front + 0.05], size: [0.08, 0.06, 0.05], ck: 'accF1' });
+        add({ name: 'aF3', parent: 'head', pivot: [0.15, hy - hh * 0.17, front + 0.05], size: [0.08, 0.06, 0.05], ck: 'accF1' });
+        break;
+      case 'starface':
+        add({ name: 'aF1', parent: 'head', pivot: [hw * 0.40, ey - 0.10, ez], size: [0.14, 0.05, 0.04], ck: 'accF1', emis: 0.6 });
+        add({ name: 'aF2', parent: 'head', pivot: [hw * 0.40, ey - 0.10, ez], size: [0.05, 0.14, 0.04], ck: 'accF1', emis: 0.6 });
+        add({ name: 'aF3', parent: 'head', pivot: [hw * 0.40, ey - 0.10, ez + 0.01], size: [0.06, 0.06, 0.04], ck: 'accF2', emis: 0.9, ao: 0 });
+        break;
     }
 
     // ---- шея ----
@@ -6815,6 +7255,44 @@ void main(){
       case 'tie':
         add({ name: 'aN1', parent: 'body', pivot: [0, bodyH * 0.26, bodyL * 0.46], size: [0.14, 0.10, 0.08], ck: 'accN1' });
         add({ name: 'aN2', parent: 'body', pivot: [0, bodyH * 0.02, bodyL * 0.50], size: [0.13, 0.30, 0.06], ck: 'accN1' });
+        break;
+      case 'pearls':
+        for (let i = 0; i < 7; i++) {
+          const a = -0.9 + (i / 6) * 1.8;
+          add({
+            name: 'aNp' + i, parent: 'body',
+            pivot: [Math.sin(a) * bodyW * 0.5, bodyH * 0.22 - Math.cos(a) * 0.06, bodyL * 0.44],
+            size: [0.09, 0.09, 0.09], ck: i === 3 ? 'accN2' : 'accN1', emis: 0.25
+          });
+        }
+        break;
+      case 'bowtie':
+        add({ name: 'aN1', parent: 'body', pivot: [0, bodyH * 0.24, bodyL * 0.44], size: [bodyW * 0.98, 0.06, 0.13], ck: 'accN2' });
+        add({ name: 'aN2', parent: 'body', pivot: [-0.11, bodyH * 0.16, bodyL * 0.52], size: [0.16, 0.15, 0.07], ck: 'accN1' });
+        add({ name: 'aN3', parent: 'body', pivot: [0.11, bodyH * 0.16, bodyL * 0.52], size: [0.16, 0.15, 0.07], ck: 'accN1' });
+        add({ name: 'aN4', parent: 'body', pivot: [0, bodyH * 0.16, bodyL * 0.53], size: [0.08, 0.09, 0.08], ck: 'accN2' });
+        break;
+      case 'flower':
+        add({ name: 'aN1', parent: 'body', pivot: [0, bodyH * 0.24, bodyL * 0.44], size: [bodyW * 0.98, 0.07, 0.13], ck: 'accN2' });
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * 6.283;
+          add({
+            name: 'aNf' + i, parent: 'body',
+            pivot: [bodyW * 0.28 + Math.cos(a) * 0.08, bodyH * 0.16 + Math.sin(a) * 0.08, bodyL * 0.52],
+            size: [0.10, 0.10, 0.06], ck: 'accN1'
+          });
+        }
+        add({ name: 'aNfc', parent: 'body', pivot: [bodyW * 0.28, bodyH * 0.16, bodyL * 0.54], size: [0.07, 0.07, 0.06], ck: 'accN2', emis: 0.4 });
+        break;
+      case 'kerchief':
+        add({ name: 'aN1', parent: 'body', pivot: [0, bodyH * 0.24, bodyL * 0.42], size: [bodyW * 1.08, 0.13, 0.18], ck: 'accN1' });
+        add({ name: 'aN2', parent: 'body', pivot: [0, bodyH * 0.02, bodyL * 0.48], size: [bodyW * 0.62, 0.22, 0.10], ck: 'accN1' });
+        add({ name: 'aN3', parent: 'body', pivot: [0, -bodyH * 0.16, bodyL * 0.44], size: [0.16, 0.14, 0.08], ck: 'accN2' });
+        break;
+      case 'amulet':
+        add({ name: 'aN1', parent: 'body', pivot: [0, bodyH * 0.26, bodyL * 0.45], size: [bodyW * 0.94, 0.05, 0.10], ck: 'accN2' });
+        add({ name: 'aN2', parent: 'body', pivot: [0, bodyH * 0.04, bodyL * 0.52], size: [0.16, 0.20, 0.06], ck: 'accN1', emis: 0.35 });
+        add({ name: 'aN3', parent: 'body', pivot: [0, bodyH * 0.04, bodyL * 0.55], size: [0.08, 0.10, 0.05], ck: 'accN2', emis: 0.9, ao: 0 });
         break;
     }
 
@@ -6894,6 +7372,63 @@ void main(){
           });
         }
         break;
+      case 'overalls':
+        add({ name: 'aW1', parent: 'body', pivot: [0, -bodyH * 0.06, 0], size: [bodyW * 1.10, bodyH * 0.62, bodyL * 1.06], ck: 'accW1' });
+        for (const sx of [-1, 1]) {
+          add({
+            name: 'aWs' + (sx < 0 ? 'L' : 'R'), parent: 'body',
+            pivot: [sx * bodyW * 0.24, bodyH * 0.36, bodyL * 0.14],
+            size: [0.11, bodyH * 0.5, bodyL * 0.9], ck: 'accW1'
+          });
+        }
+        add({ name: 'aW2', parent: 'body', pivot: [0, bodyH * 0.02, bodyL * 0.42], size: [0.22, 0.20, 0.10], ck: 'accW2' });
+        break;
+      case 'tutu':
+        add({ name: 'aW1', parent: 'body', pivot: [0, bodyH * 0.04, 0], size: [bodyW * 1.04, bodyH * 0.5, bodyL * 1.02], ck: 'accW1' });
+        for (let i = 0; i < 3; i++) {
+          add({
+            name: 'aWt' + i, parent: 'body',
+            pivot: [0, -bodyH * (0.12 + i * 0.10), -bodyL * 0.06],
+            size: [bodyW * (1.5 + i * 0.3), 0.13, bodyL * (1.2 + i * 0.24)],
+            ck: i === 1 ? 'accW2' : 'accW1', wob: 0.02 + i * 0.015
+          });
+        }
+        break;
+      case 'hoodie':
+        add({ name: 'aW1', parent: 'body', pivot: [0, bodyH * 0.04, 0], size: [bodyW * 1.12, bodyH * 0.78, bodyL * 1.08], ck: 'accW1' });
+        add({ name: 'aW2', parent: 'body', pivot: [0, bodyH * 0.56, -bodyL * 0.18], size: [bodyW * 0.94, bodyH * 0.36, bodyL * 0.42], ck: 'accW2' });
+        add({ name: 'aW3', parent: 'body', pivot: [0, -bodyH * 0.10, bodyL * 0.40], size: [bodyW * 0.6, 0.16, 0.08], ck: 'accW2' });
+        for (const sx of [-1, 1]) {
+          add({ name: 'aWl' + (sx < 0 ? 'L' : 'R'), parent: 'body', pivot: [sx * 0.07, bodyH * 0.22, bodyL * 0.48], size: [0.05, 0.18, 0.05], ck: 'accW2', wob: 0.03 });
+        }
+        break;
+      case 'telnyashka':
+        add({ name: 'aW1', parent: 'body', pivot: [0, bodyH * 0.04, 0], size: [bodyW * 1.08, bodyH * 0.74, bodyL * 1.04], ck: 'accW1' });
+        for (let i = 0; i < 5; i++) {
+          add({
+            name: 'aWp' + i, parent: 'body',
+            pivot: [0, bodyH * (0.30 - i * 0.16), 0],
+            size: [bodyW * 1.10, bodyH * 0.08, bodyL * 1.06], ck: 'accW2'
+          });
+        }
+        break;
+      case 'pjs':
+        add({ name: 'aW1', parent: 'body', pivot: [0, bodyH * 0.02, 0], size: [bodyW * 1.14, bodyH * 0.84, bodyL * 1.10], ck: 'accW1' });
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * 6.283;
+          add({
+            name: 'aWz' + i, parent: 'body',
+            pivot: [Math.cos(a) * bodyW * 0.56, bodyH * 0.10 + Math.sin(a) * bodyH * 0.3, bodyL * (i % 2 ? 0.3 : -0.3)],
+            size: [0.10, 0.10, 0.10], ck: 'accW2'
+          });
+        }
+        break;
+      case 'kimono':
+        add({ name: 'aW1', parent: 'body', pivot: [0, bodyH * 0.02, 0], size: [bodyW * 1.12, bodyH * 0.82, bodyL * 1.08], ck: 'accW1' });
+        add({ name: 'aW2', parent: 'body', pivot: [0, bodyH * 0.06, 0], size: [bodyW * 1.16, bodyH * 0.16, bodyL * 1.10], ck: 'accW2' });
+        add({ name: 'aW3', parent: 'body', pivot: [0, bodyH * 0.30, bodyL * 0.40], size: [0.16, bodyH * 0.5, 0.10], ck: 'accW2' });
+        add({ name: 'aW4', parent: 'body', pivot: [0, -bodyH * 0.06, -bodyL * 0.48], size: [0.20, 0.24, 0.12], ck: 'accW2', wob: 0.03 });
+        break;
     }
 
     // ---- спина ----
@@ -6937,6 +7472,61 @@ void main(){
         add({ name: 'aB2', parent: 'body', pivot: [-bodyW * 0.26, bodyH * 0.20, -bodyL * 0.34], size: [0.13, 0.14, 0.13], ck: 'accB2', emis: 0.9 });
         add({ name: 'aB3', parent: 'body', pivot: [bodyW * 0.26, bodyH * 0.20, -bodyL * 0.34], size: [0.13, 0.14, 0.13], ck: 'accB2', emis: 0.9 });
         add({ name: 'aB4', parent: 'body', pivot: [0, bodyH * 0.68, -bodyL * 0.30], size: [0.10, 0.10, 0.10], ck: 'accB2', emis: 0.6 });
+        break;
+      case 'balloon':
+        add({ name: 'aB1', parent: 'body', pivot: [0, bodyH * 0.5, -bodyL * 0.3], size: [0.05, 0.05, 0.05], ck: 'accB2' });
+        for (let i = 0; i < 4; i++) {
+          add({ name: 'aBn' + i, parent: 'body', pivot: [0.02 * i, bodyH * 0.5 + 0.16 + i * 0.15, -bodyL * 0.3], size: [0.03, 0.15, 0.03], ck: 'accB2', wob: 0.02 * (i + 1) });
+        }
+        add({ name: 'aB2', parent: 'body', pivot: [0.08, bodyH * 0.5 + 0.86, -bodyL * 0.3], size: [0.40, 0.46, 0.40], ck: 'accB1', wob: 0.06 });
+        add({ name: 'aB3', parent: 'body', pivot: [0.08, bodyH * 0.5 + 0.60, -bodyL * 0.3], size: [0.09, 0.09, 0.09], ck: 'accB1', wob: 0.06 });
+        break;
+      case 'turtle':
+        add({ name: 'aB1', parent: 'body', pivot: [0, bodyH * 0.44, -bodyL * 0.04], size: [bodyW * 1.12, 0.30, bodyL * 0.98], ck: 'accB1' });
+        add({ name: 'aB2', parent: 'body', pivot: [0, bodyH * 0.62, -bodyL * 0.04], size: [bodyW * 0.8, 0.14, bodyL * 0.7], ck: 'accB1' });
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * 6.283;
+          add({
+            name: 'aBt' + i, parent: 'body',
+            pivot: [Math.cos(a) * bodyW * 0.34, bodyH * 0.60, -bodyL * 0.04 + Math.sin(a) * bodyL * 0.28],
+            size: [0.14, 0.10, 0.14], ck: 'accB2'
+          });
+        }
+        break;
+      case 'banner':
+        add({ name: 'aB1', parent: 'body', pivot: [-0.10, bodyH * 0.9, -bodyL * 0.2], size: [0.06, 0.90, 0.06], ck: 'accB2' });
+        for (let i = 0; i < 3; i++) {
+          add({
+            name: 'aBf' + i, parent: 'body',
+            pivot: [-0.10 + 0.14 + i * 0.13, bodyH * 1.14 - i * 0.04, -bodyL * 0.2],
+            size: [0.14, 0.34 - i * 0.06, 0.04], ck: 'accB1', wob: 0.03 + i * 0.02
+          });
+        }
+        break;
+      case 'guitar':
+        add({ name: 'aB1', parent: 'body', pivot: [0.06, bodyH * 0.30, -bodyL * 0.34], size: [0.44, 0.50, 0.13], ck: 'accB1' });
+        add({ name: 'aB2', parent: 'body', pivot: [0.06, bodyH * 0.30, -bodyL * 0.34 - 0.06], size: [0.18, 0.18, 0.04], ck: 'accB2' });
+        add({ name: 'aB3', parent: 'body', pivot: [0.06, bodyH * 0.86, -bodyL * 0.34], size: [0.13, 0.60, 0.09], ck: 'accB2' });
+        add({ name: 'aB4', parent: 'body', pivot: [0.06, bodyH * 1.22, -bodyL * 0.34], size: [0.19, 0.14, 0.10], ck: 'accB1' });
+        break;
+      case 'umbrella':
+        add({ name: 'aB1', parent: 'body', pivot: [0.10, bodyH * 0.8, -bodyL * 0.24], size: [0.05, 0.80, 0.05], ck: 'accB2' });
+        for (let i = 0; i < 3; i++) {
+          add({
+            name: 'aBu' + i, parent: 'body',
+            pivot: [0.10, bodyH * 1.14 + i * 0.10, -bodyL * 0.24],
+            size: [0.86 - i * 0.24, 0.10, 0.86 - i * 0.24], ck: i % 2 ? 'accB2' : 'accB1'
+          });
+        }
+        add({ name: 'aBuk', parent: 'body', pivot: [0.10, bodyH * 0.42, -bodyL * 0.24], size: [0.12, 0.09, 0.09], ck: 'accB2' });
+        break;
+      case 'fairy':
+        for (const sx of [-1, 1]) {
+          const nm = sx < 0 ? 'aBfL' : 'aBfR';
+          add({ name: nm, parent: 'body', pivot: [sx * bodyW * 0.36, bodyH * 0.48, -bodyL * 0.06] });
+          add({ name: nm + 'a', parent: nm, pivot: [sx * 0.22, 0.22, -0.04], size: [0.34, 0.44, 0.04], ck: 'accB1', alpha: 0.6, emis: 0.4 });
+          add({ name: nm + 'b', parent: nm, pivot: [sx * 0.20, -0.14, -0.08], size: [0.28, 0.32, 0.04], ck: 'accB2', alpha: 0.6, emis: 0.4 });
+        }
         break;
     }
 
@@ -7498,7 +8088,13 @@ void main(){
     eye: hex('#2ec27e'), eyeShine: hex('#ffffff'), nose: hex('#d4557a'),
     hat: hex('#5b4bd6'), hatBand: hex('#372a9e'), gem: hex('#7ce8ff'),
     collar: hex('#b03a5b'), whisker: hex('#fff3e0'),
-    horn: hex('#f0e6d0'), wing: hex('#dfe8ff'), metal: hex('#c8ccd8')
+    horn: hex('#f0e6d0'), wing: hex('#dfe8ff'), metal: hex('#c8ccd8'),
+    // для зверей, которые не коты. Коты этих ключей не касаются:
+    // клюв рисуется только при snout:'beak', тёмные уши — при
+    // earDark, пятна — при mask. Значения тут на всякий случай,
+    // чтобы ни одна деталь никогда не осталась без цвета.
+    beak: hex('#ffb03a'), earOut: hex('#3a3444'), patch: hex('#2a2634'),
+    pattern: hex('#2a2420')
   };
 
   function P(o) { return Object.assign({}, BASE_PAL, o); }
@@ -7739,11 +8335,342 @@ void main(){
       build: { ear: 'normal', tail: 'stub', hat: 'crown', eye: 'star', neck: 'chain', chub: 1.1 },
       pal: P({ fur: hex('#e0d8b8'), fur2: hex('#fff8e0'), ear: hex('#c8a888'), eye: hex('#3affd0'), hat: hex('#c9a02a'), hatBand: hex('#0a0a1a'), gem: hex('#3affd0'), collar: hex('#8a7a4a'), metal: hex('#ffd66a') }),
       bonus: { hp: 65, dmg: 12, spd: -0.03, mana: 20 }, armor: 0.18, regen: 1.4, glow: 0.2
+    },
+
+    // ============================================================
+    //  ЗВЕРИ, КОТОРЫЕ НЕ КОТЫ
+    //
+    //  Отличаются не окрасом, а телом: у собаки вытянутая морда и
+    //  висячие уши, у медведя круглая, у птицы клюв, у слонёнка
+    //  хобот, у тюленя ласты вместо лап. Раскрасить кота в чёрно-белое
+    //  и назвать пандой не выйдет — получится кот.
+    // ============================================================
+
+    // ---------------- СОБАКИ ----------------
+    {
+      id: 'bobik', вид: 'собака', name: 'Бобик', rarity: 'common', price: 300,
+      desc: 'Дворовый пёс с добрым сердцем. Ходит за вами хвостиком.',
+      build: { snout: 'dog', ear: 'flop', tail: 'curl', hat: 'cap', eye: 'round', neck: 'collar' },
+      pal: P({ fur: hex('#a8763a'), fur2: hex('#e8c890'), eye: hex('#6a4a2a'), nose: hex('#3a2a22'), hat: hex('#c04a3a'), hatBand: hex('#8a2a1a'), gem: hex('#ffd06a'), collar: hex('#8a4a2a') }),
+      bonus: { hp: 12, dmg: 2, spd: 0.04, mana: 0 }
+    },
+    {
+      id: 'mopsik', вид: 'собака', name: 'Мопсик', rarity: 'common', price: 350,
+      desc: 'Маленький, пухлый и очень серьёзный. Сопит на ходу.',
+      build: { snout: 'dog', ear: 'flop', tail: 'stub', hat: 'none', eye: 'wide', neck: 'bell', chub: 1.3, legs: 0.72, head: 1.15 },
+      pal: P({ fur: hex('#e0c090'), fur2: hex('#f5e4c8'), eye: hex('#4a3020'), nose: hex('#2a2028'), gem: hex('#ffd66a'), collar: hex('#c05a7a') }),
+      bonus: { hp: 30, dmg: 0, spd: -0.06, mana: 0 }
+    },
+    {
+      id: 'haski', вид: 'собака', warm: 4, coldImmune: true, name: 'Хаски', rarity: 'rare', price: 900,
+      desc: 'Северный пёс с голубыми глазами. Мороз ему только в радость.',
+      build: { snout: 'dog', ear: 'big', tail: 'bushy', hat: 'none', eye: 'round', neck: 'scarf', mane: true, legs: 1.08 },
+      pal: P({ fur: hex('#5a6478'), fur2: hex('#f0f4ff'), ear: hex('#c8b0c0'), eye: hex('#6ad0ff'), nose: hex('#2a2a34'), gem: hex('#a8e8ff'), collar: hex('#3a6a9a') }),
+      bonus: { hp: 25, dmg: 4, spd: 0.14, mana: 0 }
+    },
+    {
+      id: 'ovcharka', вид: 'собака', name: 'Овчарка', rarity: 'epic', price: 1600,
+      desc: 'Умная и надёжная. Всегда идёт первой и прикрывает своих.',
+      build: { snout: 'dog', ear: 'big', tail: 'fluffy', hat: 'none', eye: 'round', neck: 'collar', back: 'pack', legs: 1.12, body: 1.1 },
+      pal: P({ fur: hex('#4a3a2a'), fur2: hex('#c89a52'), ear: hex('#8a6a4a'), eye: hex('#c8903a'), nose: hex('#221a18'), gem: hex('#ffb43a'), collar: hex('#6a4a2a') }),
+      bonus: { hp: 45, dmg: 12, spd: 0.08, mana: 0 }, armor: 0.16
+    },
+
+    // ---------------- ВОЛКИ ----------------
+    {
+      id: 'volk', вид: 'волк', warm: 2, name: 'Серый', rarity: 'rare', price: 950,
+      desc: 'Лесной волк. Тихий, быстрый и очень внимательный.',
+      build: { snout: 'dog', ear: 'big', tail: 'fluffy', hat: 'none', eye: 'round', neck: 'none', mane: true, legs: 1.1, body: 1.08 },
+      pal: P({ fur: hex('#6a6e7a'), fur2: hex('#c0c4d0'), ear: hex('#3a3a44'), eye: hex('#ffd23a'), nose: hex('#26242c'), gem: hex('#ffd23a'), collar: hex('#4a4a56') }),
+      bonus: { hp: 20, dmg: 14, spd: 0.14, mana: 0 }, stealth: 0.2
+    },
+    {
+      id: 'lunnyi', вид: 'волк', coldImmune: true, name: 'Лунный волк', rarity: 'legendary', price: 4200,
+      desc: 'Воет на луну, и луна отвечает. Шерсть светится в темноте.',
+      build: { snout: 'dog', ear: 'big', tail: 'fluffy', hat: 'halo', eye: 'star', neck: 'chain', mane: true, legs: 1.15, body: 1.1 },
+      pal: P({ fur: hex('#2a3050'), fur2: hex('#8aa0e8'), ear: hex('#5a6ab0'), eye: hex('#a8d8ff'), eyeShine: hex('#ffffff'), nose: hex('#1a1c2a'), gem: hex('#a8d8ff'), collar: hex('#3a4a7a') }),
+      bonus: { hp: 60, dmg: 26, spd: 0.18, mana: 45 }, glow: 0.45, aura: 'star', stealth: 0.3
+    },
+
+    // ---------------- ЛИСЫ ----------------
+    {
+      id: 'lisa', вид: 'лиса', name: 'Рыжинка', rarity: 'common', price: 400,
+      desc: 'Хитрая лисичка с огромным пушистым хвостом.',
+      build: { snout: 'dog', ear: 'big', tail: 'bushy', hat: 'none', eye: 'round', neck: 'none', chub: 0.92, legs: 1.05 },
+      pal: P({ fur: hex('#e07a2a'), fur2: hex('#fff0d8'), ear: hex('#3a2a26'), eye: hex('#8ac86a'), nose: hex('#2a2028'), gem: hex('#ffd06a'), collar: hex('#a84a1a') }),
+      bonus: { hp: 5, dmg: 6, spd: 0.12, mana: 6 }, gold: 0.2
+    },
+    {
+      id: 'pesec', вид: 'лиса', warm: 4, coldImmune: true, name: 'Песец', rarity: 'epic', price: 1700,
+      desc: 'Полярная лиса. Белая, как позёмка, и такая же неуловимая.',
+      build: { snout: 'dog', ear: 'round', tail: 'bushy', hat: 'hood', eye: 'wide', neck: 'scarf', chub: 1.05 },
+      pal: P({ fur: hex('#eef2ff'), fur2: hex('#ffffff'), ear: hex('#d0d8f0'), eye: hex('#6ad0ff'), nose: hex('#3a3a48'), hat: hex('#8ab0e0'), hatBand: hex('#4a7ab0'), gem: hex('#a8e8ff'), collar: hex('#6a9ad0') }),
+      bonus: { hp: 30, dmg: 12, spd: 0.16, mana: 20 }, stealth: 0.3
+    },
+
+    // ---------------- МЕДВЕДИ ----------------
+    {
+      id: 'medved', вид: 'медведь', warm: 3, name: 'Бурый', rarity: 'rare', price: 1000,
+      desc: 'Большой и сильный. Бьёт лапой так, что деревья вздрагивают.',
+      build: { snout: 'bear', ear: 'panda', tail: 'stub', hat: 'none', eye: 'round', neck: 'none', chub: 1.45, legs: 0.9, body: 1.15, head: 1.05 },
+      pal: P({ fur: hex('#7a5232'), fur2: hex('#b08a5a'), ear: hex('#4a3020'), eye: hex('#3a2a1a'), nose: hex('#241c18'), gem: hex('#ffb43a'), collar: hex('#5a3a24') }),
+      bonus: { hp: 70, dmg: 18, spd: -0.08, mana: 0 }, armor: 0.2
+    },
+    {
+      id: 'umka', вид: 'медведь', warm: 5, coldImmune: true, name: 'Умка', rarity: 'epic', price: 1800,
+      desc: 'Белый медвежонок со льдины. На морозе ему теплее всего.',
+      build: { snout: 'bear', ear: 'panda', tail: 'stub', hat: 'none', eye: 'wide', neck: 'scarf', chub: 1.4, legs: 0.92, body: 1.1, head: 1.08 },
+      pal: P({ fur: hex('#f0f4ff'), fur2: hex('#ffffff'), ear: hex('#d8dff0'), eye: hex('#3a4a6a'), nose: hex('#2a2a34'), gem: hex('#a8e8ff'), collar: hex('#5a9ad0') }),
+      bonus: { hp: 80, dmg: 16, spd: -0.05, mana: 20 }, armor: 0.22
+    },
+
+    // ---------------- ПАНДЫ ----------------
+    {
+      id: 'panda', вид: 'панда', name: 'Панда', rarity: 'epic', price: 2200,
+      desc: 'Жуёт бамбук и никуда не спешит. Но обижать себя не даёт.',
+      build: { snout: 'bear', ear: 'panda', earDark: true, mask: 'panda', tail: 'stub', hat: 'none', eye: 'round', neck: 'none', chub: 1.38, legs: 0.9, body: 1.1, head: 1.06 },
+      pal: P({ fur: hex('#f4f4f0'), fur2: hex('#ffffff'), earOut: hex('#26242c'), patch: hex('#26242c'), eye: hex('#ffffff'), eyeShine: hex('#3a3a44'), nose: hex('#26242c'), gem: hex('#8ae06a'), collar: hex('#4a7a3a') }),
+      bonus: { hp: 65, dmg: 14, spd: -0.04, mana: 25 }, armor: 0.18, regen: 1
+    },
+    {
+      id: 'krasnaya', вид: 'панда', warm: 2, name: 'Красная панда', rarity: 'mythic', price: 3000,
+      desc: 'Рыжий зверёк с полосатым хвостом. Днём спит на ветке, ночью колдует.',
+      build: { snout: 'bear', ear: 'panda', tail: 'bushy', hat: 'none', eye: 'wide', neck: 'bell', chub: 1.15, legs: 0.95, head: 1.1 },
+      pal: P({ fur: hex('#c85a2a'), fur2: hex('#fff0d8'), ear: hex('#fff0d8'), eye: hex('#2a2028'), nose: hex('#26202a'), gem: hex('#ffd06a'), collar: hex('#8a3a1a') }),
+      bonus: { hp: 40, dmg: 18, spd: 0.12, mana: 40 }, regen: 1, gold: 0.25
+    },
+
+    // ---------------- ОБЕЗЬЯНЫ ----------------
+    {
+      id: 'martyshka', вид: 'обезьяна', name: 'Мартышка', rarity: 'common', price: 400,
+      desc: 'Ни секунды на месте. Хватает всё, до чего дотянется.',
+      build: { snout: 'monkey', ear: 'panda', tail: 'rope', paws: 'hand', hat: 'none', eye: 'wide', neck: 'none', chub: 0.88, legs: 1, head: 1.08 },
+      pal: P({ fur: hex('#8a6a4a'), fur2: hex('#e8c8a0'), ear: hex('#e8c8a0'), eye: hex('#3a2a1a'), nose: hex('#4a3428'), gem: hex('#ffd06a'), collar: hex('#c04a3a') }),
+      bonus: { hp: 0, dmg: 4, spd: 0.16, mana: 8 }, gold: 0.2
+    },
+    {
+      id: 'orangutan', вид: 'обезьяна', name: 'Орангутан', rarity: 'rare', price: 1000,
+      desc: 'Рыжий и задумчивый. Долго думает, зато потом делает сразу.',
+      build: { snout: 'monkey', ear: 'panda', tail: 'stub', paws: 'hand', hat: 'none', eye: 'sleepy', neck: 'none', mane: true, chub: 1.3, legs: 0.9, body: 1.1, head: 1.1 },
+      pal: P({ fur: hex('#c86a2a'), fur2: hex('#e8a868'), ear: hex('#8a5a3a'), eye: hex('#3a2418'), nose: hex('#5a3a28'), gem: hex('#ffb43a'), collar: hex('#8a4a20') }),
+      bonus: { hp: 50, dmg: 12, spd: -0.02, mana: 25 }, armor: 0.12
+    },
+    {
+      id: 'gorilla', вид: 'обезьяна', name: 'Горилла', rarity: 'mythic', price: 3200,
+      desc: 'Спокойный великан. Бьёт себя в грудь — и всем сразу всё понятно.',
+      build: { snout: 'monkey', ear: 'panda', tail: 'none', paws: 'hand', hat: 'none', eye: 'round', neck: 'chain', mane: true, chub: 1.6, legs: 0.85, body: 1.2, head: 1.12 },
+      pal: P({ fur: hex('#33313c'), fur2: hex('#5a5866'), ear: hex('#4a4854'), eye: hex('#c8903a'), nose: hex('#1a181e'), gem: hex('#ff7a3a'), collar: hex('#5a3a2a'), metal: hex('#b0b4c0') }),
+      bonus: { hp: 110, dmg: 30, spd: -0.1, mana: 0 }, armor: 0.28
+    },
+
+    // ---------------- БЕЛКИ ----------------
+    {
+      id: 'belka', вид: 'белка', name: 'Белочка', rarity: 'common', price: 350,
+      desc: 'Прыгает по веткам и прячет орешки. Монетки находит чаще всех.',
+      build: { ear: 'tuft', tail: 'bushy', hat: 'none', eye: 'wide', neck: 'none', chub: 0.82, legs: 0.9, head: 1.12 },
+      pal: P({ fur: hex('#c07a3a'), fur2: hex('#fff0d0'), ear: hex('#e8b880'), eye: hex('#2a2028'), nose: hex('#3a2a2a'), gem: hex('#ffd06a'), collar: hex('#8a5a2a') }),
+      bonus: { hp: -5, dmg: 2, spd: 0.2, mana: 6 }, gold: 0.35
+    },
+    {
+      id: 'letyaga', вид: 'белка', name: 'Летяга', rarity: 'epic', price: 1900,
+      desc: 'Белка-планёр. Расправляет перепонки и летит между деревьями.',
+      build: { ear: 'round', tail: 'flat', wings: 'bat', hat: 'none', eye: 'wide', neck: 'none', chub: 0.9, legs: 0.9, head: 1.14 },
+      pal: P({ fur: hex('#8a94b0'), fur2: hex('#e8eef8'), ear: hex('#c8b0c0'), eye: hex('#2a2834'), nose: hex('#3a3440'), wing: hex('#a8b4d0'), gem: hex('#a8e8ff'), collar: hex('#5a6a90') }),
+      bonus: { hp: 15, dmg: 10, spd: 0.24, mana: 30 }, glow: 0.15
+    },
+
+    // ---------------- СЛОНЯТА ----------------
+    {
+      id: 'slonenok', вид: 'слонёнок', name: 'Слонёнок', rarity: 'epic', price: 2500,
+      desc: 'Маленький слон с большими ушами. Хоботом умеет поливать цветы.',
+      build: { snout: 'trunk', ear: 'wide', tail: 'rope', hat: 'none', eye: 'round', neck: 'collar', chub: 1.42, legs: 0.95, body: 1.15, head: 1.05 },
+      pal: P({ fur: hex('#8a90a0'), fur2: hex('#b8bec8'), ear: hex('#a8aeb8'), eye: hex('#3a2a1a'), nose: hex('#6a7080'), gem: hex('#7ce8ff'), collar: hex('#c04a7a'), horn: hex('#fff4e0') }),
+      bonus: { hp: 90, dmg: 20, spd: -0.08, mana: 20 }, armor: 0.24
+    },
+    {
+      id: 'rozovyi', вид: 'слонёнок', name: 'Розовый слонёнок', rarity: 'mythic', price: 3400,
+      desc: 'Тот самый, которого видят во сне. Наяву он тоже бывает.',
+      build: { snout: 'trunk', ear: 'wide', tail: 'rope', hat: 'halo', eye: 'star', neck: 'scarf', chub: 1.38, legs: 0.98, body: 1.12, head: 1.06 },
+      pal: P({ fur: hex('#ffa8d0'), fur2: hex('#ffd8ea'), ear: hex('#ffc0dd'), eye: hex('#7affe0'), eyeShine: hex('#ffffff'), nose: hex('#e88ab0'), gem: hex('#7affe0'), collar: hex('#ff6aa8'), horn: hex('#ffffff') }),
+      bonus: { hp: 75, dmg: 24, spd: 0.04, mana: 55 }, glow: 0.4, aura: 'star', regen: 1
+    },
+
+    // ---------------- ТЮЛЕНИ ----------------
+    {
+      id: 'tyulen', вид: 'тюлень', warm: 4, coldImmune: true, name: 'Тюленёнок', rarity: 'rare', price: 850,
+      desc: 'Круглый, гладкий и очень довольный. По льду скользит быстрее, чем ходит.',
+      build: { snout: 'blunt', ear: 'none', tail: 'flat', paws: 'flipper', hat: 'none', eye: 'wide', neck: 'none', chub: 1.45, legs: 0.4, body: 1.45, head: 0.98 },
+      pal: P({ fur: hex('#8a9ab0'), fur2: hex('#d8e4f0'), eye: hex('#1a1820'), eyeShine: hex('#ffffff'), nose: hex('#2a2830'), whisker: hex('#e8f0ff'), gem: hex('#a8e8ff'), collar: hex('#4a7a9a') }),
+      bonus: { hp: 45, dmg: 6, spd: -0.02, mana: 25 }, armor: 0.14
+    },
+    {
+      id: 'morzh', вид: 'тюлень', warm: 5, coldImmune: true, name: 'Морж', rarity: 'mythic', price: 2900,
+      desc: 'Усатый хозяин льдины. Бивнями раскалывает лёд, а заодно и врагов.',
+      build: { snout: 'blunt', bivni: true, ear: 'none', tail: 'flat', paws: 'flipper', hat: 'none', eye: 'sleepy', neck: 'none', chub: 1.75, legs: 0.42, body: 1.5, head: 1.08 },
+      pal: P({ fur: hex('#8a6a72'), fur2: hex('#c8a8a8'), eye: hex('#2a2028'), nose: hex('#4a3438'), whisker: hex('#fff0e8'), horn: hex('#fff4e0'), gem: hex('#a8e8ff'), collar: hex('#6a4a50') }),
+      bonus: { hp: 105, dmg: 28, spd: -0.12, mana: 20 }, armor: 0.3
+    },
+
+    // ---------------- ПТИЦЫ ----------------
+    {
+      id: 'vorobei', вид: 'птица', name: 'Воробушек', rarity: 'common', price: 400,
+      desc: 'Маленький, шустрый и очень громкий. Никого не боится.',
+      build: { snout: 'beak', ear: 'tiny', tail: 'plume', wings: 'feather', hat: 'none', eye: 'round', neck: 'none', chub: 0.85, legs: 0.85, head: 1.15 },
+      pal: P({ fur: hex('#8a7250'), fur2: hex('#d8c49a'), eye: hex('#1a1820'), eyeShine: hex('#ffffff'), beak: hex('#ffb03a'), wing: hex('#6a5a3a'), gem: hex('#ffd06a'), collar: hex('#6a5a3a') }),
+      bonus: { hp: -8, dmg: 3, spd: 0.22, mana: 10 }
+    },
+    {
+      id: 'sovenok', вид: 'птица', warm: 1, name: 'Совёнок', rarity: 'rare', price: 900,
+      desc: 'Огромные глаза видят в темноте. Ночью он умнее всех.',
+      build: { snout: 'beak', ear: 'tuft', tail: 'plume', wings: 'feather', hat: 'none', eye: 'wide', neck: 'none', chub: 1.15, legs: 0.8, head: 1.28 },
+      pal: P({ fur: hex('#7a6250'), fur2: hex('#e0cba8'), ear: hex('#c8a878'), eye: hex('#ffc83a'), eyeShine: hex('#ffffff'), beak: hex('#e8a03a'), wing: hex('#5a4a3a'), gem: hex('#c0a0ff'), collar: hex('#5a4a3a') }),
+      bonus: { hp: 10, dmg: 8, spd: 0.08, mana: 40 }, stealth: 0.25
+    },
+    {
+      id: 'pingvin', вид: 'птица', warm: 5, coldImmune: true, name: 'Пингвинёнок', rarity: 'rare', price: 900,
+      desc: 'Ходит вразвалочку, а на животе съезжает с любой горки.',
+      build: { snout: 'beak', ear: 'tiny', tail: 'stub', paws: 'flipper', hat: 'none', eye: 'round', neck: 'scarf', chub: 1.25, legs: 0.7, head: 1.05 },
+      pal: P({ fur: hex('#2e2c3a'), fur2: hex('#f4f4f0'), eye: hex('#ffffff'), eyeShine: hex('#2a2830'), beak: hex('#ff9a3a'), gem: hex('#a8e8ff'), collar: hex('#c03a4a') }),
+      bonus: { hp: 35, dmg: 6, spd: 0.04, mana: 20 }, armor: 0.12
+    },
+    {
+      id: 'popugai', вид: 'птица', name: 'Попугай', rarity: 'epic', price: 1800,
+      desc: 'Яркий, как радуга, и болтает без умолку. Повторяет ваши заклинания.',
+      build: { snout: 'beak', ear: 'tiny', tail: 'plume', wings: 'feather', hat: 'none', eye: 'star', neck: 'none', chub: 0.95, legs: 0.9, head: 1.12 },
+      pal: P({ fur: hex('#2ec27e'), fur2: hex('#ffd23a'), eye: hex('#ffffff'), eyeShine: hex('#2a2830'), beak: hex('#ff7a3a'), wing: hex('#4ac8ff'), gem: hex('#ff6ad0'), collar: hex('#ff6ad0') }),
+      bonus: { hp: 20, dmg: 16, spd: 0.16, mana: 45 }, cdr: 0.12, glow: 0.2
+    },
+    {
+      id: 'feniks', вид: 'птица', warm: -3, heatImmune: true, name: 'Феникс', rarity: 'legendary', price: 4500,
+      desc: 'Сгорает и рождается заново. Раны на нём затягиваются сами.',
+      build: { snout: 'beak', ear: 'tuft', tail: 'plume', wings: 'feather', hat: 'crown', eye: 'star', neck: 'none', chub: 1.05, legs: 1, head: 1.1 },
+      pal: P({ fur: hex('#ff5a1a'), fur2: hex('#ffd23a'), ear: hex('#ffa83a'), eye: hex('#fff4c0'), eyeShine: hex('#ffffff'), beak: hex('#ffd23a'), wing: hex('#ff8a1a'), hat: hex('#ffd23a'), hatBand: hex('#c04a10'), gem: hex('#fff4c0'), collar: hex('#c04a10'), horn: hex('#ffd23a') }),
+      bonus: { hp: 55, dmg: 30, spd: 0.16, mana: 60 }, glow: 0.6, aura: 'fire', regen: 3
+    },
+
+    // ---------------- ЗАЙЦЫ ----------------
+    {
+      id: 'zaichonok', вид: 'заяц', name: 'Зайчонок', rarity: 'common', price: 400,
+      desc: 'Длинные уши и мощные задние лапы. Прыгает дальше всех.',
+      build: { snout: 'rabbit', ear: 'long', tail: 'puff', прыгун: true, hat: 'none', eye: 'wide', neck: 'none', chub: 0.95, legs: 0.95, head: 1.1 },
+      pal: P({ fur: hex('#a89880'), fur2: hex('#fff4e4'), ear: hex('#f0b8c8'), eye: hex('#3a2a2a'), nose: hex('#e08aa0'), horn: hex('#fffaf0'), gem: hex('#ffd06a'), collar: hex('#8a7a5a') }),
+      bonus: { hp: 0, dmg: 2, spd: 0.2, mana: 8 }
+    },
+    {
+      id: 'belyak', вид: 'заяц', warm: 4, coldImmune: true, name: 'Беляк', rarity: 'rare', price: 900,
+      desc: 'Зимний заяц. В снегу его почти не видно — и он этим пользуется.',
+      build: { snout: 'rabbit', ear: 'long', tail: 'puff', прыгун: true, hat: 'hood', eye: 'wide', neck: 'scarf', chub: 1.02, legs: 1, head: 1.1 },
+      pal: P({ fur: hex('#f2f6ff'), fur2: hex('#ffffff'), ear: hex('#e0c0d0'), eye: hex('#6ad0ff'), nose: hex('#e89ab0'), horn: hex('#ffffff'), hat: hex('#8ab0e0'), hatBand: hex('#4a7ab0'), gem: hex('#a8e8ff'), collar: hex('#6a9ad0') }),
+      bonus: { hp: 15, dmg: 6, spd: 0.22, mana: 20 }, stealth: 0.3
+    },
+    {
+      id: 'krol', вид: 'заяц', name: 'Кролик', rarity: 'common', price: 350,
+      desc: 'Домашний, круглый и очень доверчивый. Обожает морковку.',
+      build: { snout: 'rabbit', ear: 'flop', tail: 'puff', прыгун: true, hat: 'none', eye: 'wide', neck: 'bell', chub: 1.2, legs: 0.8, head: 1.15 },
+      pal: P({ fur: hex('#c8a0a8'), fur2: hex('#fff0f0'), ear: hex('#f0b8c8'), eye: hex('#5a2a3a'), nose: hex('#e08aa0'), horn: hex('#fffaf0'), gem: hex('#ffd66a'), collar: hex('#e07a9a') }),
+      bonus: { hp: 22, dmg: 0, spd: 0.1, mana: 10 }
+    },
+
+    // ---------------- БОЛЬШИЕ КОШКИ ----------------
+    {
+      id: 'tigr', вид: 'большая кошка', name: 'Тигр', rarity: 'epic', price: 2400,
+      desc: 'Полосатый охотник. Один прыжок — и всё уже решено.',
+      build: { узор: 'stripes', ear: 'round', tail: 'normal', hat: 'none', eye: 'round', neck: 'none', chub: 1.3, legs: 1.1, body: 1.2, head: 1.08 },
+      pal: P({ fur: hex('#e88a2a'), fur2: hex('#fff0d8'), pattern: hex('#241c1a'), ear: hex('#fff0d8'), eye: hex('#ffd23a'), nose: hex('#c05a6a'), gem: hex('#ffd23a'), collar: hex('#a84a1a') }),
+      bonus: { hp: 55, dmg: 28, spd: 0.12, mana: 10 }, claw: 0.25
+    },
+    {
+      id: 'belyitigr', вид: 'большая кошка', warm: 3, coldImmune: true, name: 'Белый тигр', rarity: 'mythic', price: 3600,
+      desc: 'Редчайший из тигров. Голубые глаза и совершенно бесшумный шаг.',
+      build: { узор: 'stripes', ear: 'round', tail: 'normal', hat: 'none', eye: 'wide', neck: 'chain', chub: 1.3, legs: 1.12, body: 1.2, head: 1.08 },
+      pal: P({ fur: hex('#f0f4ff'), fur2: hex('#ffffff'), pattern: hex('#2a2a3a'), ear: hex('#e0d0e0'), eye: hex('#6ad0ff'), nose: hex('#c07a8a'), gem: hex('#a8e8ff'), collar: hex('#5a7ab0') }),
+      bonus: { hp: 65, dmg: 32, spd: 0.16, mana: 30 }, claw: 0.3, stealth: 0.25
+    },
+    {
+      id: 'lev', вид: 'большая кошка', warm: 1, name: 'Лев', rarity: 'mythic', price: 3500,
+      desc: 'Царь зверей. Грива, рык и полная уверенность в себе.',
+      build: { ear: 'round', tail: 'normal', hat: 'crown', eye: 'round', neck: 'none', mane: true, chub: 1.32, legs: 1.1, body: 1.2, head: 1.12 },
+      pal: P({ fur: hex('#d8a04a'), fur2: hex('#8a5a24'), ear: hex('#8a5a24'), eye: hex('#ffb43a'), nose: hex('#a84a5a'), hat: hex('#ffd23a'), hatBand: hex('#c9971a'), gem: hex('#ffd23a'), collar: hex('#8a5a24') }),
+      bonus: { hp: 80, dmg: 30, spd: 0.06, mana: 20 }, armor: 0.18, claw: 0.25
+    },
+    {
+      id: 'lvenok', вид: 'большая кошка', name: 'Львёнок', rarity: 'rare', price: 1000,
+      desc: 'Гривы ещё нет, а рычать уже умеет. Почти.',
+      build: { ear: 'round', tail: 'normal', hat: 'none', eye: 'wide', neck: 'collar', chub: 1.05, legs: 0.92, head: 1.18 },
+      pal: P({ fur: hex('#e8b868'), fur2: hex('#fff0d0'), ear: hex('#c89050'), eye: hex('#8a5a2a'), nose: hex('#c07a8a'), gem: hex('#ffd06a'), collar: hex('#c04a3a') }),
+      bonus: { hp: 30, dmg: 12, spd: 0.1, mana: 10 }, claw: 0.12
+    },
+    {
+      id: 'leopard', вид: 'большая кошка', name: 'Леопард', rarity: 'epic', price: 2300,
+      desc: 'Пятнистый и стремительный. Умеет исчезать прямо на глазах.',
+      build: { узор: 'spots', ear: 'round', tail: 'thin', hat: 'none', eye: 'round', neck: 'none', chub: 1.15, legs: 1.15, body: 1.18, head: 1.02 },
+      pal: P({ fur: hex('#e0b060'), fur2: hex('#fff4dc'), pattern: hex('#3a2a1a'), ear: hex('#3a2a1a'), eye: hex('#9de03a'), nose: hex('#b06a7a'), gem: hex('#c6ff7a'), collar: hex('#8a6a2a') }),
+      bonus: { hp: 35, dmg: 24, spd: 0.22, mana: 15 }, stealth: 0.3, claw: 0.2
+    },
+    {
+      id: 'yaguar', вид: 'большая кошка', name: 'Ягуар', rarity: 'mythic', price: 3100,
+      desc: 'Пятна у него не простые, а в розетках. Самая крепкая хватка в джунглях.',
+      build: { узор: 'rosettes', ear: 'round', tail: 'normal', hat: 'none', eye: 'round', neck: 'none', chub: 1.34, legs: 1.05, body: 1.2, head: 1.12 },
+      pal: P({ fur: hex('#d8a83a'), fur2: hex('#fff0c8'), pattern: hex('#2a1e14'), ear: hex('#2a1e14'), eye: hex('#ffb43a'), nose: hex('#a05a6a'), gem: hex('#ffb43a'), collar: hex('#7a5a1a') }),
+      bonus: { hp: 70, dmg: 30, spd: 0.12, mana: 15 }, claw: 0.3, armor: 0.12
+    },
+    {
+      id: 'bars', вид: 'большая кошка', warm: 4, coldImmune: true, name: 'Снежный барс', rarity: 'legendary', price: 4300,
+      desc: 'Живёт выше облаков. Хвост длиной с него самого — им он держит равновесие на скалах.',
+      build: { узор: 'rosettes', ear: 'round', tail: 'fluffy', hat: 'hood', eye: 'wide', neck: 'scarf', chub: 1.25, legs: 1.15, body: 1.22, head: 1.05 },
+      pal: P({ fur: hex('#c8ccd8'), fur2: hex('#f4f8ff'), pattern: hex('#3a3a4a'), ear: hex('#3a3a4a'), eye: hex('#8ae0d0'), nose: hex('#a07a8a'), hat: hex('#7a8ab0'), hatBand: hex('#4a5a80'), gem: hex('#a8e8ff'), collar: hex('#5a6a90') }),
+      bonus: { hp: 60, dmg: 34, spd: 0.24, mana: 40 }, stealth: 0.35, claw: 0.28
+    },
+    {
+      id: 'gepard', вид: 'большая кошка', name: 'Гепард', rarity: 'epic', price: 2600,
+      desc: 'Самый быстрый зверь на свете. Догнать его нельзя, можно только подождать.',
+      build: { узор: 'spots', ear: 'round', tail: 'thin', hat: 'none', eye: 'round', neck: 'collar', chub: 0.95, legs: 1.3, body: 1.22, head: 0.98 },
+      pal: P({ fur: hex('#e8c878'), fur2: hex('#fff4dc'), pattern: hex('#2a2018'), ear: hex('#2a2018'), eye: hex('#ffb43a'), nose: hex('#3a2a2a'), gem: hex('#ffd06a'), collar: hex('#a88a3a') }),
+      bonus: { hp: 20, dmg: 22, spd: 0.38, mana: 15 }, claw: 0.2
+    },
+    {
+      id: 'rys', вид: 'большая кошка', warm: 3, name: 'Рысь', rarity: 'rare', price: 1100,
+      desc: 'Кисточки на ушах слышат всё. Ходит по снегу так, что следов почти нет.',
+      build: { узор: 'spots', ear: 'tuft', tail: 'stub', hat: 'none', eye: 'round', neck: 'none', chub: 1.1, legs: 1.2, body: 1.05, head: 1.05, mane: true },
+      pal: P({ fur: hex('#c8a888'), fur2: hex('#fff0e0'), pattern: hex('#5a4030'), ear: hex('#3a2a26'), eye: hex('#9de03a'), nose: hex('#b06a7a'), gem: hex('#c6ff7a'), collar: hex('#7a5a3a') }),
+      bonus: { hp: 30, dmg: 18, spd: 0.2, mana: 15 }, stealth: 0.25, claw: 0.15
+    },
+    {
+      id: 'pantera', вид: 'большая кошка', name: 'Пантера', rarity: 'legendary', price: 4400,
+      desc: 'Чёрная, как безлунная ночь. Розетки видно, только если приглядеться.',
+      build: { узор: 'rosettes', ear: 'round', tail: 'normal', hat: 'none', eye: 'star', neck: 'chain', chub: 1.22, legs: 1.18, body: 1.22, head: 1.05 },
+      pal: P({ fur: hex('#1f1c2c'), fur2: hex('#33304a'), pattern: hex('#12101c'), ear: hex('#3a3450'), eye: hex('#7affe0'), nose: hex('#5a3a4a'), gem: hex('#7affe0'), collar: hex('#3a3450'), metal: hex('#8a94b0') }),
+      bonus: { hp: 55, dmg: 38, spd: 0.26, mana: 45 }, stealth: 0.45, claw: 0.32, glow: 0.2
     }
   ];
 
+  // ------------------------------------------------------------
+  //  ВИДЫ ЗВЕРЕЙ
+  //  Порядок тут — порядок вкладок на экране выбора. Коты первые:
+  //  игра про них, они и остаются главными.
+  // ------------------------------------------------------------
+  const ВИДЫ = [
+    { id: 'кот', name: 'Коты', значок: '🐱' },
+    { id: 'большая кошка', name: 'Большие кошки', значок: '🐯' },
+    { id: 'собака', name: 'Собаки', значок: '🐶' },
+    { id: 'волк', name: 'Волки', значок: '🐺' },
+    { id: 'лиса', name: 'Лисы', значок: '🦊' },
+    { id: 'медведь', name: 'Медведи', значок: '🐻' },
+    { id: 'панда', name: 'Панды', значок: '🐼' },
+    { id: 'обезьяна', name: 'Обезьяны', значок: '🐵' },
+    { id: 'белка', name: 'Белки', значок: '🐿' },
+    { id: 'заяц', name: 'Зайцы', значок: '🐰' },
+    { id: 'слонёнок', name: 'Слонята', значок: '🐘' },
+    { id: 'тюлень', name: 'Тюлени', значок: '🦭' },
+    { id: 'птица', name: 'Птицы', значок: '🐦' }
+  ];
+  KM.ВИДЫ = ВИДЫ;
+  KM.ВИД_ПО = {};
+  ВИДЫ.forEach(в => { KM.ВИД_ПО[в.id] = в; });
+
   // сортировка по редкости для витрин
-  CATS.forEach(c => { c.rar = RARITY[c.rarity] || RARITY.common; });
+  // у кого вид не написан — тот кот: так было с самого начала
+  CATS.forEach(c => { c.rar = RARITY[c.rarity] || RARITY.common; c.вид = c.вид || 'кот'; });
 
   KM.RARITY = RARITY;
   KM.RARITY_ORDER = RARITY_ORDER;
@@ -7902,6 +8829,208 @@ void main(){
       rarity: 'mythic', price: 2800, c1: hex('#8a90a0'), c2: hex('#ff7a2a'),
       desc: 'Пыхает магическим пламенем. Кот прыгает выше и бегает быстрее.',
       bonus: { spd: 0.15 }, jump: 0.2
+    },
+
+    // ============================================================
+    //  ВТОРАЯ ПОЛКА ГАРДЕРОБА
+    //  Тридцать три вещи: шапки, что на морду, на шею, на спину и
+    //  одежда. Дорогие дают больше, но главное тут — вид.
+    // ============================================================
+
+    // ---------- голова ----------
+    {
+      id: 'pirate', warm: 1, name: 'Пиратская Треуголка', icon: '🏴‍☠️', slot: 'head', shape: 'pirate',
+      rarity: 'epic', price: 1500, c1: hex('#241c2c'), c2: hex('#f4f4f0'),
+      desc: 'С черепом и костями. Кто её надел, тот и капитан.',
+      bonus: { dmg: 8, hp: 15 }, gold: 0.2
+    },
+    {
+      id: 'chef', warm: 1, name: 'Колпак Повара', icon: '👨‍🍳', slot: 'head', shape: 'chef',
+      rarity: 'rare', price: 620, c1: hex('#ffffff'), c2: hex('#e0e4f0'),
+      desc: 'Высокий и накрахмаленный. Еда в сумке дольше не портится… наверное.',
+      bonus: { hp: 20 }
+    },
+    {
+      id: 'headphones', warm: 1, name: 'Наушники', icon: '🎧', slot: 'head', shape: 'headphones',
+      rarity: 'rare', price: 780, c1: hex('#2a2a3a'), c2: hex('#6ae0ff'),
+      desc: 'С подсветкой. В них не слышно, как рычит босс, — зато не страшно.',
+      bonus: { mana: 18 }
+    },
+    {
+      id: 'graduate', warm: 0, name: 'Шапочка Умника', icon: '🎓', slot: 'head', shape: 'graduate',
+      rarity: 'epic', price: 1400, c1: hex('#1a1a2c'), c2: hex('#ffd23a'),
+      desc: 'Квадратная, с кисточкой. Опыта за победы приходит больше.',
+      bonus: { mana: 25 }, luck: 0.15
+    },
+    {
+      id: 'unicorn', warm: 0, name: 'Рог Единорога', icon: '🦄', slot: 'head', shape: 'unicorn',
+      rarity: 'legendary', price: 3200, c1: hex('#ffb0e8'), c2: hex('#ffffff'),
+      desc: 'Светится сам по себе. Заклинания с ним бьют заметно сильнее.',
+      bonus: { dmg: 16, mana: 40 }, luck: 0.2
+    },
+    {
+      id: 'earmuffs', warm: 5, name: 'Меховые Наушники', icon: '🎿', slot: 'head', shape: 'earmuffs',
+      rarity: 'common', price: 340, c1: hex('#e0a0b8'), c2: hex('#8a5a6a'),
+      desc: 'Мягкие и тёплые. Уши в мороз не мёрзнут совсем.',
+      bonus: { hp: 18 }
+    },
+    {
+      id: 'viking', warm: 3, name: 'Шлем Викинга', icon: '⚔️', slot: 'head', shape: 'viking',
+      rarity: 'epic', price: 1700, c1: hex('#8a94a8'), c2: hex('#e8d8b0'),
+      desc: 'С настоящими рогами. Бодаться им нельзя, но выглядит грозно.',
+      bonus: { hp: 35, dmg: 10 }
+    },
+    {
+      id: 'flowerpot', warm: 0, name: 'Горшок с Цветком', icon: '🪴', slot: 'head', shape: 'flowerpot',
+      rarity: 'rare', price: 700, c1: hex('#c86a4a'), c2: hex('#4ac86a'),
+      desc: 'Кто-то надел горшок на голову, и там вырос цветок. Так и ходит.',
+      bonus: { hp: 15, mana: 15 }, regen: 1
+    },
+
+    // ---------- морда ----------
+    {
+      id: 'mask', warm: 0, name: 'Маска Героя', icon: '🦸', slot: 'face', shape: 'mask',
+      rarity: 'epic', price: 1300, c1: hex('#2a3a8a'), c2: hex('#ffd23a'),
+      desc: 'Никто не узнаёт. Правда, хвост всё равно выдаёт.',
+      bonus: { dmg: 10, spd: 0.06 }
+    },
+    {
+      id: 'snorkel', warm: 0, name: 'Маска для Плавания', icon: '🤿', slot: 'face', shape: 'snorkel',
+      rarity: 'rare', price: 650, c1: hex('#3a8ad0'), c2: hex('#a8e8ff'),
+      desc: 'С трубкой. В воде дышится легко, на суше — смешно.',
+      bonus: { hp: 12, mana: 10 }
+    },
+    {
+      id: 'bandage', warm: 0, name: 'Пластырь', icon: '🩹', slot: 'face', shape: 'bandage',
+      rarity: 'common', price: 180, c1: hex('#ffd8b0'), c2: hex('#ff8a9a'),
+      desc: 'Маленький пластырь на щеке. Царапина заживёт, а вид остался боевой.',
+      bonus: { hp: 12 }, regen: 1
+    },
+    {
+      id: 'blush', warm: 0, name: 'Румяные Щёчки', icon: '😊', slot: 'face', shape: 'blush',
+      rarity: 'common', price: 200, c1: hex('#ff9ab8'), c2: hex('#ffc0d8'),
+      desc: 'Просто щёчки. Просто румяные. И сразу все добрее.',
+      bonus: {}, luck: 0.1
+    },
+    {
+      id: 'mustache', warm: 0, name: 'Усы Щёточкой', icon: '👨', slot: 'face', shape: 'mustache',
+      rarity: 'rare', price: 560, c1: hex('#3a2a22'), c2: hex('#5a4032'),
+      desc: 'Солидные усы поверх собственных. Сразу видно — зверь серьёзный.',
+      bonus: { dmg: 6 }
+    },
+    {
+      id: 'starface', warm: 0, name: 'Звёздочка на Щеке', icon: '⭐', slot: 'face', shape: 'starface',
+      rarity: 'epic', price: 1200, c1: hex('#ffd23a'), c2: hex('#fff4c0'),
+      desc: 'Светится и не смывается. Говорят, приносит удачу.',
+      bonus: { mana: 20 }, luck: 0.25
+    },
+
+    // ---------- шея ----------
+    {
+      id: 'pearls', warm: 0, name: 'Жемчужные Бусы', icon: '📿', slot: 'neck', shape: 'pearls',
+      rarity: 'epic', price: 1600, c1: hex('#fff4f8'), c2: hex('#ffd23a'),
+      desc: 'Семь жемчужин, и одна золотая посередине.',
+      bonus: { mana: 22 }, gold: 0.2, luck: 0.1
+    },
+    {
+      id: 'bowtie', warm: 0, name: 'Бабочка', icon: '🎀', slot: 'neck', shape: 'bowtie',
+      rarity: 'common', price: 280, c1: hex('#c0304a'), c2: hex('#2a2a3a'),
+      desc: 'Для праздников и важных разговоров.',
+      bonus: { mana: 8 }
+    },
+    {
+      id: 'nflower', warm: 0, name: 'Цветок на Шею', icon: '🌼', slot: 'neck', shape: 'flower',
+      rarity: 'common', price: 260, c1: hex('#ffd23a'), c2: hex('#ff8ac0'),
+      desc: 'Один большой цветок сбоку. Пчёлы иногда путаются.',
+      bonus: { hp: 8, mana: 8 }
+    },
+    {
+      id: 'kerchief', warm: 3, name: 'Платок', icon: '🧣', slot: 'neck', shape: 'kerchief',
+      rarity: 'rare', price: 600, c1: hex('#c04a3a'), c2: hex('#f0d8a0'),
+      desc: 'Повязан узлом на груди. Греет и никогда не развязывается.',
+      bonus: { hp: 22 }
+    },
+    {
+      id: 'amulet', warm: 0, name: 'Амулет', icon: '🔮', slot: 'neck', shape: 'amulet',
+      rarity: 'legendary', price: 3000, c1: hex('#5a2a9a'), c2: hex('#c0a0ff'),
+      desc: 'Внутри что-то тихо светится. Мана прибывает быстрее.',
+      bonus: { mana: 55, dmg: 10 }, cdr: 0.12
+    },
+
+    // ---------- одежда ----------
+    {
+      id: 'overalls', warm: 2, name: 'Комбинезон', icon: '👖', slot: 'body', shape: 'overalls',
+      rarity: 'common', price: 380, c1: hex('#3a6ac0'), c2: hex('#ffd23a'),
+      desc: 'С лямками и большим карманом. В нём удобно копать.',
+      bonus: { hp: 18 }, gold: 0.12
+    },
+    {
+      id: 'tutu', warm: 0, name: 'Балетная Пачка', icon: '🩰', slot: 'body', shape: 'tutu',
+      rarity: 'rare', price: 850, c1: hex('#ffb0d8'), c2: hex('#fff0f8'),
+      desc: 'Три пышных слоя. Прыгать в ней — одно удовольствие.',
+      bonus: { spd: 0.1 }, jump: 0.12
+    },
+    {
+      id: 'hoodie', warm: 3, name: 'Худи', icon: '🧥', slot: 'body', shape: 'hoodie',
+      rarity: 'common', price: 420, c1: hex('#4a4a5a'), c2: hex('#ff7a3a'),
+      desc: 'С капюшоном и шнурками. Самая удобная вещь на свете.',
+      bonus: { hp: 22 }
+    },
+    {
+      id: 'telnyashka', warm: 2, name: 'Тельняшка', icon: '⚓', slot: 'body', shape: 'telnyashka',
+      rarity: 'rare', price: 700, c1: hex('#f0f4ff'), c2: hex('#3a6ac0'),
+      desc: 'Полосатая, как положено. В ней не страшно ни море, ни босс.',
+      bonus: { hp: 25, dmg: 6 }
+    },
+    {
+      id: 'pjs', warm: 4, name: 'Пижама со Звёздами', icon: '🌙', slot: 'body', shape: 'pjs',
+      rarity: 'rare', price: 760, c1: hex('#3a3a7a'), c2: hex('#ffd23a'),
+      desc: 'Мягкая, в звёздочках. Здоровье в ней восстанавливается само.',
+      bonus: { hp: 30, mana: 20 }, regen: 2
+    },
+    {
+      id: 'kimono', warm: 2, name: 'Кимоно', icon: '🥋', slot: 'body', shape: 'kimono',
+      rarity: 'epic', price: 1900, c1: hex('#c02a4a'), c2: hex('#f0e0c0'),
+      desc: 'С широким поясом и бантом сзади. Движения становятся точнее.',
+      bonus: { dmg: 18, spd: 0.08 }
+    },
+
+    // ---------- спина ----------
+    {
+      id: 'balloon', warm: 0, name: 'Воздушный Шарик', icon: '🎈', slot: 'back', shape: 'balloon',
+      rarity: 'common', price: 300, c1: hex('#ff4a5a'), c2: hex('#f0f0f0'),
+      desc: 'Привязан к спине и тянет вверх. Прыгать становится легче.',
+      bonus: {}, jump: 0.2, feather: true
+    },
+    {
+      id: 'turtle', warm: 1, name: 'Панцирь', icon: '🐢', slot: 'back', shape: 'turtle',
+      rarity: 'epic', price: 1800, c1: hex('#4a7a3a'), c2: hex('#8ac86a'),
+      desc: 'Настоящий, крепкий. Прятаться внутрь не выйдет, но удар держит.',
+      bonus: { hp: 55 }, armor: 0.22
+    },
+    {
+      id: 'banner', warm: 0, name: 'Флажок', icon: '🚩', slot: 'back', shape: 'banner',
+      rarity: 'rare', price: 640, c1: hex('#c02a3a'), c2: hex('#8a6a3a'),
+      desc: 'Развевается за спиной. Друзья видят вас издалека.',
+      bonus: { dmg: 8, hp: 10 }
+    },
+    {
+      id: 'guitar', warm: 0, name: 'Гитара', icon: '🎸', slot: 'back', shape: 'guitar',
+      rarity: 'epic', price: 1700, c1: hex('#c04a2a'), c2: hex('#3a2a22'),
+      desc: 'За спиной, как у настоящего странника. Играть, правда, некогда.',
+      bonus: { mana: 35 }, luck: 0.15
+    },
+    {
+      id: 'umbrella', warm: 1, name: 'Зонтик', icon: '☂️', slot: 'back', shape: 'umbrella',
+      rarity: 'rare', price: 720, c1: hex('#c02a5a'), c2: hex('#f0e0f0'),
+      desc: 'Раскрыт над спиной. Падать с ним не страшно — опускаетесь мягко.',
+      bonus: { hp: 15 }, feather: true
+    },
+    {
+      id: 'fairy', warm: 0, name: 'Крылья Мотылька', icon: '🦋', slot: 'back', shape: 'fairy',
+      rarity: 'legendary', price: 3400, c1: hex('#a8e8ff'), c2: hex('#ffb0e8'),
+      desc: 'Тонкие светящиеся крылышки. С ними прыгается выше, а падается мягче.',
+      bonus: { mana: 45, spd: 0.12 }, jump: 0.25, feather: true
     }
   ];
 
@@ -8085,19 +9214,19 @@ void main(){
   // ---------- ещё аксессуары ----------
   ACC.push(
     {
-      id: 'flowercrown', warm: 0, name: 'Венок из Цветов', icon: '🌸', slot: 'head', shape: 'bow',
+      id: 'flowercrown', warm: 0, name: 'Венок из Цветов', icon: '🌸', slot: 'head', shape: 'flowers',
       rarity: 'common', price: 320, c1: hex('#ff9ac0'), c2: hex('#8ae06a'),
       desc: 'Сплетён своими лапами в собственном саду.',
       bonus: {}, luck: 0.12
     },
     {
-      id: 'strawhat', warm: 2, name: 'Соломенная Шляпа', icon: '👒', slot: 'head', shape: 'beanie',
+      id: 'strawhat', warm: 2, name: 'Соломенная Шляпа', icon: '👒', slot: 'head', shape: 'sunhat',
       rarity: 'common', price: 380, c1: hex('#e8c86a'), c2: hex('#c8a03a'),
       desc: 'Для сада, рыбалки и долгих солнечных дней.',
       bonus: { en: 10 }
     },
     {
-      id: 'horns', warm: 0, name: 'Рожки Бесёнка', icon: '😈', slot: 'head', shape: 'antler',
+      id: 'horns', warm: 0, name: 'Рожки Бесёнка', icon: '😈', slot: 'head', shape: 'horns',
       rarity: 'rare', price: 900, c1: hex('#c0304a'), c2: hex('#ff8a5a'),
       desc: 'Совершенно не настоящие. Наверное.',
       bonus: { dmg: 5 }
@@ -9842,6 +10971,106 @@ void main(){
 
 </script>
 <script>
+/**
+ * ОБЛИК ПЕРСОНАЖА — размер, возраст и пол.
+ *
+ * Это не новый зверь, а настройка поверх любого: тигр может быть
+ * малышом, а зайчонок — большим и взрослым. Меняются только вид и
+ * пропорции. Умения, здоровье и скорость остаются те же — иначе
+ * «сделаться маленьким» превратилось бы в способ схитрить, и все
+ * ходили бы одинаковыми.
+ *
+ * Хранится в сохранении, в data.облик.
+ */
+(function (global) {
+  'use strict';
+  const KM = global.KM;
+
+  // Пять размеров. Крайние нарочно не слишком крайние: слишком
+  // мелкий зверь теряется на экране, слишком крупный не пролезает
+  // взглядом в узкие места.
+  const РАЗМЕР = [
+    { id: 'кроха', name: 'Кроха', k: 0.78, значок: '🐜' },
+    { id: 'мелкий', name: 'Маленький', k: 0.89, значок: '🐁' },
+    { id: 'обычный', name: 'Обычный', k: 1.00, значок: '🐾' },
+    { id: 'крупный', name: 'Крупный', k: 1.13, значок: '🐕' },
+    { id: 'огромный', name: 'Огромный', k: 1.28, значок: '🐘' }
+  ];
+
+  // Возраст меняет пропорции, а не размер. У малыша голова больше,
+  // а лапы короче — по этому детёныша и узнают, у любого зверя.
+  const ВОЗРАСТ = [
+    { id: 'малыш', name: 'Малыш', значок: '🍼', head: 1.38, legs: 0.62, body: 0.80, chub: 1.16,
+      описание: 'Большая голова, короткие лапки — совсем ещё детёныш.' },
+    { id: 'подросток', name: 'Подросток', значок: '🌱', head: 1.16, legs: 0.84, body: 0.92, chub: 1.06,
+      описание: 'Уже не малыш, но ещё не вырос.' },
+    { id: 'взрослый', name: 'Взрослый', значок: '⭐', head: 1, legs: 1, body: 1, chub: 1,
+      описание: 'Обычные, взрослые пропорции.' }
+  ];
+
+  const ПОЛ = [
+    { id: 'м', name: 'Мальчик', значок: '💙' },
+    { id: 'ж', name: 'Девочка', значок: '💗' },
+    { id: 'нет', name: 'Не важно', значок: '💛' }
+  ];
+
+  const ПО_ИД = (список) => {
+    const o = {};
+    список.forEach(x => { o[x.id] = x; });
+    return o;
+  };
+
+  const ОБЛИК = {
+    РАЗМЕР, ВОЗРАСТ, ПОЛ,
+    РАЗМЕР_ПО: ПО_ИД(РАЗМЕР),
+    ВОЗРАСТ_ПО: ПО_ИД(ВОЗРАСТ),
+    ПОЛ_ПО: ПО_ИД(ПОЛ),
+
+    /** Что записано в сохранении; чего нет — то по умолчанию. */
+    чтение(data) {
+      const о = data.облик || (data.облик = {});
+      if (!this.РАЗМЕР_ПО[о.размер]) о.размер = 'обычный';
+      if (!this.ВОЗРАСТ_ПО[о.возраст]) о.возраст = 'взрослый';
+      if (!this.ПОЛ_ПО[о.пол]) о.пол = 'нет';
+      return о;
+    },
+
+    задать(state, поле, значение) {
+      const о = this.чтение(state.data);
+      о[поле] = значение;
+      state.save();
+      return о;
+    },
+
+    /** Во сколько раз рисовать зверя. */
+    рост(state) {
+      const о = this.чтение(state.data);
+      return (this.РАЗМЕР_ПО[о.размер] || this.РАЗМЕР[2]).k;
+    },
+
+    /**
+     * Как называть зверя в тексте: «он», «она» или нейтрально.
+     * Пол выбран игроком, гадать по имени нельзя.
+     */
+    он(state) {
+      const о = this.чтение(state.data);
+      return о.пол === 'ж' ? 'она' : (о.пол === 'м' ? 'он' : 'они');
+    },
+
+    /** Короткая строчка для панели: «Крупный · Малыш · Девочка». */
+    строка(state) {
+      const о = this.чтение(state.data);
+      return [this.РАЗМЕР_ПО[о.размер].name,
+              this.ВОЗРАСТ_ПО[о.возраст].name,
+              this.ПОЛ_ПО[о.пол].name].join(' · ');
+    }
+  };
+
+  KM.ОБЛИК = ОБЛИК;
+})(window);
+
+</script>
+<script>
 /* ============================================================
    КОТИКИ МАГИ 3D — прогресс, предметы, заклинания, питомцы
    ============================================================ */
@@ -10426,6 +11655,23 @@ void main(){
       out.pal = Object.assign({}, base.pal, skin ? skin.pal : null);
       out.build = Object.assign({}, base.build, skin ? skin.build : null);
       out.skin = skin || null;
+
+      // ---- облик: размер, возраст, пол ----
+      // Это не отдельный персонаж, а настройка поверх любого. Малыш —
+      // большая голова и короткие лапы, взрослый — наоборот. Меняются
+      // только пропорции: умения и бонусы остаются те же, иначе
+      // «сделать себя маленьким» стало бы способом схитрить.
+      const об = KM.ОБЛИК ? KM.ОБЛИК.чтение(d) : null;
+      if (об) {
+        const в = KM.ОБЛИК.ВОЗРАСТ_ПО[об.возраст] || KM.ОБЛИК.ВОЗРАСТ[1];
+        out.build.head = (out.build.head || 1) * в.head;
+        out.build.legs = (out.build.legs || 1) * в.legs;
+        out.build.body = (out.build.body || 1) * в.body;
+        out.build.chub = (out.build.chub || 1) * в.chub;
+        if (об.пол === 'ж') out.build.ресницы = true;
+        out.рост = (KM.ОБЛИК.РАЗМЕР_ПО[об.размер] || KM.ОБЛИК.РАЗМЕР[2]).k;
+        out.облик = об;
+      }
 
       // аксессуары
       const acc = d.acc || {};
@@ -17473,6 +18719,12 @@ void main(){
         region: info.region || 'other', lang: info.lang || 'ru',
         birth: info.birth || { d: 1, m: 1, y: 2015 },
         avatar: info.avatar || 'muri',
+        // Цвет, рассказ о себе и картинку тоже забираем с сервера.
+        // Раньше они тут терялись, и вход с другого устройства стирал
+        // человеку и подпись, и аватарку — а он их писал.
+        color: info.color || 'gold',
+        bio: info.bio || '',
+        pic: info.pic || '',
         created: Date.now(), lastLogin: Date.now(),
         lastBirthdayYear: 0, playtime: 0,
         isServer: true
@@ -21735,6 +22987,8 @@ void main(){
       // у каждого персонажа своя модель
       const m = KM.catModel(st.cat);
       if (m !== this.model) { this.model = m; this.pose = new KM.vox.Pose(m); }
+      // насколько крупным игрок выбрал своего зверя
+      this.рост = KM.ОБЛИК ? KM.ОБЛИК.рост(this.game.state) : 1;
       const hpRatio = this.maxHp ? this.hp / this.maxHp : 1;
       this.maxHp = st.maxHp; this.maxMana = st.maxMana; this.maxEnergy = st.maxEnergy;
       this.hp = Math.min(this.maxHp, Math.max(1, hpRatio * this.maxHp));
@@ -22674,7 +23928,11 @@ void main(){
           M4.compose(TMPB, 0, -0.46, 0, 0, 0, 0, 1, 1, 1);
           M4.mul(this.mat, TMPA, TMPB);
         } else {
-          M4.trs(this.mat, this.x, this.y, this.z, this.facing, 1, 1, 1);
+          // Размер зверя — это только вид. Столкновения и высота
+          // прыжка остаются прежними: иначе «сделаться крохой»
+          // стало бы способом пролезть там, где нельзя.
+          const р = this.рост || 1;
+          M4.trs(this.mat, this.x, this.y, this.z, this.facing, р, р, р);
         }
         KM.vox.drawModel(batch, this.model, this.mat, this.pose, {
           pal, alpha: alpha * invulnBlink,
@@ -25139,6 +26397,7 @@ void main(){
         pose: new KM.vox.Pose(model),
         mat: M4.create(),
         rarity: opts.rarity || cat.rarity || 'common',
+        рост: cat.рост || (KM.ОБЛИК ? KM.ОБЛИК.рост(this.state) : 1),
         reveal: opts.reveal !== false,
         side: opts.side || 'center',
         t: 0, flashed: false
@@ -25206,7 +26465,11 @@ void main(){
       // сам персонаж
       const rise = sc.reveal ? Math.min(1, t / 0.9) : 1;
       const y = (1 - rise) * -1.4;
-      const grow = revealed ? 1 + Math.max(0, 0.25 - (t - 1.05)) * 1.6 : 0.9 + rise * 0.1;
+      // Выбранный размер показываем прямо тут, на витрине. Иначе игрок
+      // жмёт «Крупный», а зверь перед ним не меняется — и увидеть
+      // выбор можно только выйдя в игру.
+      const рост = sc.рост || 1;
+      const grow = (revealed ? 1 + Math.max(0, 0.25 - (t - 1.05)) * 1.6 : 0.9 + rise * 0.1) * рост;
       KM.anim.cat(sc.pose, {
         t: t + 3, walk: t * 3, walkAmt: revealed ? 0.25 : 0,
         runAmt: 0, air: false, vy: 0, rest: 0,
@@ -31444,6 +32707,13 @@ void main(){
           this.nick = m.nick;
           this.online = m.list || m.online || [];
           this.changed();
+          // Связь поднялась — отправляем комнату. Тот, кто просто
+          // открыл игру и никуда не заходил, всё равно окажется дома
+          // для гостей: без этого его комната на сервере оставалась бы
+          // такой, какой была в прошлый раз, а часто — пустой.
+          if (this.game.ui && this.game.ui.комнатаНаСервер) {
+            this.game.ui.комнатаНаСервер();
+          }
           break;
 
         case 'online':
@@ -34642,7 +35912,8 @@ void main(){
         nick: r.nick, name: prof.name || r.nick,
         region: prof.region || 'other', lang: prof.lang || 'ru',
         avatar: prof.avatar || 'muri',
-        birth: prof.birth || { d: 1, m: 1, y: 2015 }
+        birth: prof.birth || { d: 1, m: 1, y: 2015 },
+        color: prof.color, bio: prof.bio, pic: prof.pic
       });
 
       // Прогресс приезжает с сервера. Кладём его в слот и перечитываем
@@ -34681,6 +35952,10 @@ void main(){
       this.updateSpellBar();
       n.hello();                                  // теперь сервер знает наш ник
       n.pushSave(slot, JSON.stringify(S.data));
+      // И сразу отправляем комнату. Иначе к тому, кто расставил мебель
+      // давно и с тех пор ничего не двигал, гости приходили бы в пустые
+      // стены: на сервере лежал бы старый, ещё пустой снимок комнаты.
+      this.комнатаНаСервер();
 
       g.audio.sfx('unlock');
       this.bigMessage(r.created ? '☁ Аккаунт создан' : '☁ С возвращением, ' + r.nick,
@@ -39237,10 +40512,79 @@ void main(){
       const owned = KM.CATS.filter(c => S.hasCat(c.id)).length;
       box.appendChild(el('div', 'help-p',
         'Открыто <b>' + owned + ' из ' + KM.CATS.length + '</b> персонажей. ' +
-        'Нажмите на карточку, чтобы рассмотреть кота вблизи.'));
+        'Нажмите на карточку, чтобы рассмотреть зверя вблизи.'));
+
+      // ---- облик: размер, возраст, пол ----
+      // Стоит первым: это настройка поверх любого зверя, и её удобно
+      // покрутить сразу, не листая весь список.
+      if (KM.ОБЛИК) {
+        const О = KM.ОБЛИК, об = О.чтение(S.data);
+        const рамка = el('div', 'oblik');
+        рамка.appendChild(el('div', 'ob-t', '✨ КАКОЙ ОН У ВАС'));
+
+        const ряд = (заголовок, поле, список) => {
+          рамка.appendChild(el('div', 'ob-l', заголовок));
+          const строка = el('div', 'ob-row');
+          for (const в of список) {
+            const b = el('button', 'ob-b' + (об[поле] === в.id ? ' on' : ''),
+              в.значок + ' ' + в.name);
+            b.onclick = () => {
+              g.audio.sfx('ui');
+              О.задать(S, поле, в.id);
+              g.player.applyStats();
+              this.buildCats();
+              // показать сразу на том, кто стоит справа
+              const кто = this.previewCat || KM.CAT_BY[S.data.activeCat] || KM.CATS[0];
+              g.showCharacter(S.effectiveCat ? S.effectiveCat() : кто,
+                { reveal: false, side: 'right', rarity: кто.rarity });
+            };
+            строка.appendChild(b);
+          }
+          рамка.appendChild(строка);
+        };
+        ряд('Размер', 'размер', О.РАЗМЕР);
+        ряд('Возраст', 'возраст', О.ВОЗРАСТ);
+        ряд('Пол', 'пол', О.ПОЛ);
+
+        рамка.appendChild(el('div', 'hint',
+          (О.ВОЗРАСТ_ПО[об.возраст] || {}).описание + '<br>' +
+          'Размер и возраст меняют только вид. Здоровье, сила и скорость ' +
+          'у всех остаются свои — маленьким быть не выгоднее и не хуже.'));
+        box.appendChild(рамка);
+      }
+
+      // ---- вкладки по видам ----
+      // Персонажей стало много, и сплошным списком их не разглядеть.
+      // Вкладки не прячут никого: «Все» показывает всех подряд.
+      const видов = KM.ВИДЫ || [];
+      if (видов.length) {
+        const полоса = el('div', 'vid-tabs');
+        const текущий = this.видФильтр || 'все';
+        const вкладка = (id, подпись, свои, всего) => {
+          const b = el('button', 'vid-tab' + (текущий === id ? ' on' : ''),
+            подпись + ' <span class="n">' + свои + '/' + всего + '</span>');
+          b.onclick = () => {
+            g.audio.sfx('ui');
+            this.видФильтр = id;
+            this.buildCats();
+          };
+          полоса.appendChild(b);
+        };
+        вкладка('все', '🐾 Все', owned, KM.CATS.length);
+        for (const в of видов) {
+          const свои = KM.CATS.filter(c => c.вид === в.id);
+          if (!свои.length) continue;
+          вкладка(в.id, в.значок + ' ' + в.name,
+            свои.filter(c => S.hasCat(c.id)).length, свои.length);
+        }
+        box.appendChild(полоса);
+      }
+
+      const фильтр = this.видФильтр && this.видФильтр !== 'все' ? this.видФильтр : null;
+      const видно = фильтр ? KM.CATS.filter(c => c.вид === фильтр) : KM.CATS;
 
       for (const rid of KM.RARITY_ORDER) {
-        const list = KM.CATS.filter(c => c.rarity === rid);
+        const list = видно.filter(c => c.rarity === rid);
         if (!list.length) continue;
         const R = KM.RARITY[rid];
         const head = el('div', 'help-note', R.name.toUpperCase() +
