@@ -15,7 +15,7 @@
  *   • всё, что начинается с /api/ — только из сети: это разговор
  *     с сервером про друзей и сохранения, запоминать его нельзя.
  */
-const КЭШ = 'kmagi-v202';
+const КЭШ = 'kmagi-v203';
 
 // На всякий случай просим и «./», и «./index.html»: разные хостинги
 // отдают главную страницу по-разному, а запомнить её надо обязательно —
@@ -57,17 +57,7 @@ self.addEventListener('fetch', (e) => {
     (req.headers.get('accept') || '').indexOf('text/html') >= 0;
 
   if (этоСтраница) {
-    e.respondWith(
-      fetch(req)
-        .then((ответ) => {
-          const копия = ответ.clone();
-          caches.open(КЭШ).then((c) => c.put(req, копия)).catch(() => { });
-          return ответ;
-        })
-        .catch((беда) => {
-        console.error('SW-СБОЙ', req.url, req.mode, req.destination, req.cache, String(beda_msg(беда)));
-        return ( caches.match(req).then((c) => c || caches.match('./')))
-    );
+    e.respondWith(страницу(req));
     return;
   }
 
@@ -80,6 +70,36 @@ self.addEventListener('fetch', (e) => {
   // всё равно что-то отдаём.
   e.respondWith(отдать(req));
 });
+
+
+/**
+ * Страница игры: сначала пробуем свежую из сети, а если сети нет —
+ * отдаём запомненную.
+ *
+ * Раньше тут был недописанный кусок с незакрытыми скобками и вызовом
+ * функции, которой не существует. Из-за одной такой ошибки не
+ * запускался весь файл целиком: игра не работала без интернета,
+ * а браузер не предлагал её установить — он предлагает это только
+ * тем сайтам, у которых помощник жив.
+ */
+async function страницу(req) {
+  try {
+    const ответ = await fetch(req);
+    const копия = ответ.clone();
+    caches.open(КЭШ).then((c) => c.put(req, копия)).catch(() => { });
+    return ответ;
+  } catch (беда) {
+    // сети нет — ищем запомненное: сначала ровно эту страницу,
+    // потом ту, с которой игра начинается
+    const своя = await caches.match(req);
+    if (своя) return своя;
+    const игра = await caches.match('./igra.html');
+    if (игра) return игра;
+    const главная = await caches.match('./');
+    if (главная) return главная;
+    return Response.error();
+  }
+}
 
 
 async function отдать(req) {
